@@ -50,3 +50,7 @@ Place MP3 fallback tracks in `media/library/`. The local Liquidsoap profile defa
 The existing `fly.toml` continues to deploy the Fastify API, **not** an Icecast origin or relay. The Next.js frontend can remain on Vercel. Provide `NEXT_PUBLIC_STREAM_URL=https://your-controlled-radio-host/radio.mp3` at web build time.
 
 Keep Icecast source passwords and DJ passwords in private host configuration, never in `NEXT_PUBLIC_*`. See [TODO.md](TODO.md) for provider prerequisites, listener testing, source authentication and redundancy.
+
+## Pilot Icecast on existing Fly Machine
+
+A gated, opt-in Icecast + Caddy configuration is available for the existing wst-prt-radio Fly API Machine. It preserves the current backend hostname and persistent data volume. Icecast is disabled by default and **does not become installed on the Fly Machine until a new image is deployed**. See [Fly single-Machine Icecast setup](docs/fly-icecast-single-machine.md). This initial design accepts a direct DJ source and deliberately omits Liquidsoap AutoDJ and any untested 1,000-listener claims.

@@ -5,16 +5,18 @@ primary_region = "iad"
   dockerfile = "Dockerfile"
 
 [env]
-  PORT = "3001"
+  PORT = "3002"
   APP_ENV = "production"
   SQLITE_DB_PATH = "/data/wstprtradio.db"
-  CORS_ALLOWED_ORIGINS = "https://wstprtradio.com,https://www.wstprtradio.com,https://wst-prt-radio.vercel.app"
-  STATION_NAME = "West Port Radio"
+  CORS_ALLOWED_ORIGINS = "https://wstprtradio.com,https://www.wstprtradio.com,https://wst-prt-radio.vercel.app,https://virgo-boys-radio.vercel.app"
+  STATION_NAME = "Virgo Boys Radio"
   # Uploaded audio lives on the persistent /data volume so songs survive
   # machine restarts and redeploys.
   SONGS_DIR = "/data/songs"
+  ICECAST_HOSTNAME = "wst-prt-radio.fly.dev"
 
 # SESSION_SECRET and ADMIN_USERS must be set as Fly secrets, not committed here.
+# ICECAST_ENABLED defaults off; configure ICECAST_* password secrets before enabling it.
 # See scripts/set-fly-env.sh.
 
 [mounts]
@@ -22,6 +24,7 @@ primary_region = "iad"
   destination = "/data"
 
 [http_service]
+  # Fly HTTPS -> Caddy :3001 -> Fastify :3002 or Icecast :8000
   internal_port = 3001
   force_https = true
   auto_start_machines = true

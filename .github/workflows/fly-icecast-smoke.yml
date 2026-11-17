@@ -1,0 +1,72 @@
+name: Fly Icecast image smoke test
+
+on:
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - 'fly.toml'
+      - 'infra/fly/**'
+      - '.github/workflows/fly-icecast-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  container-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Build Fly API and Icecast image
+        run: docker build -t virgo-fly-icecast-smoke .
+
+      - name: Start API and Icecast in local container
+        run: |
+          docker run --rm -d --name virgo-icecast-test \
+            -p 127.0.0.1:13001:3001 \
+            -e PORT=3002 -e APP_ENV=test \
+            -e SQLITE_DB_PATH=/tmp/virgo-test.db \
+            -e ICECAST_ENABLED=true \
+            -e ICECAST_SOURCE_PASSWORD=0123456789abcdef0123456789abcdef \
+            -e ICECAST_ADMIN_PASSWORD=fedcba9876543210fedcba9876543210 \
+            -e ICECAST_RELAY_PASSWORD=aabbccddeeff0011aabbccddeeff0011 \
+            virgo-fly-icecast-smoke
+
+      - name: Check Fastify health and Icecast reverse proxy
+        run: |
+          set -euo pipefail
+          healthy=0
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 2 http://127.0.0.1:13001/health >/dev/null; then
+              healthy=1
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$healthy" != 1 ]]; then
+            docker logs virgo-icecast-test
+            docker exec virgo-icecast-test sh -c 'cat /tmp/icecast-logs/error.log || true; ps -ef || true; ls -l /tmp/virgo-icecast.xml; command -v icecast' || true
+            exit 1
+          fi
+          code=""
+          for i in $(seq 1 15); do
+            code="$(curl -sS --max-time 2 -o /dev/null -w '%{http_code}' http://127.0.0.1:13001/radio.mp3 || true)"
+            if [[ "$code" == 404 ]]; then break; fi
+            sleep 1
+          done
+          # With no broadcaster connected, Icecast should return its no-source
+          # response (404); a 502 means the proxy cannot reach Icecast.
+          if [[ "$code" != 404 ]]; then
+            echo "Unexpected Icecast no-source response: $code"
+            docker logs virgo-icecast-test
+            exit 1
+          fi
+
+      - name: Container logs on failure
+        if: failure()
+        run: |
+          docker logs virgo-icecast-test || true
+          docker exec virgo-icecast-test sh -c 'cat /tmp/icecast-logs/error.log || true; ps -ef || true' || true

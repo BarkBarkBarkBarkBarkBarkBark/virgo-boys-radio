@@ -1,0 +1,11 @@
+:3001 {
+    @icecast path /radio.mp3
+    handle @icecast {
+        reverse_proxy 127.0.0.1:8000 {
+            flush_interval -1
+        }
+    }
+    handle {
+        reverse_proxy 127.0.0.1:3002
+    }
+}
