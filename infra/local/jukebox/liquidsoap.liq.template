@@ -1,8 +1,14 @@
-music = playlist(mode="${JUKEBOX_PLAYLIST_MODE}", reload_mode="watch", "${JUKEBOX_MEDIA_DIR}/*.mp3")
-radio = mksafe(music)
+# The DJ contributes to Liquidsoap's dedicated /live Harbor source.
+# Keep port 8005 on a trusted LAN or protect it using TLS and ingress auth.
+live = input.harbor("live", port=${DJ_HARBOR_PORT}, user="source", password="${DJ_SOURCE_PASSWORD}", buffer=3.)
 
+music = playlist(mode="${JUKEBOX_PLAYLIST_MODE}", reload_mode="watch", "${JUKEBOX_MEDIA_DIR}/*.mp3")
+radio = mksafe(fallback(track_sensitive=false, [live, music]))
+
+# One public encoded station output. Each Icecast listener receives this stream;
+# the DJ does NOT send an independent upstream stream per audience member.
 output.icecast(
-  %mp3(bitrate=128, stereo=true, samplerate=44100),
+  %mp3(bitrate=${JUKEBOX_BITRATE}, stereo=true, samplerate=48000),
   host="${JUKEBOX_ICECAST_HOST}",
   port=${JUKEBOX_ICECAST_PORT},
   password="${ICECAST_SOURCE_PASSWORD}",

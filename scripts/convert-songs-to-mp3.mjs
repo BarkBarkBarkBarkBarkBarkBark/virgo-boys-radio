@@ -6,7 +6,7 @@ import ffmpegPath from 'ffmpeg-static';
 
 const SRC_DIR = resolve(process.argv[2] || './songs');
 const DELETE_WAV = (process.env.DELETE_WAV || '').trim() === '1';
-const BITRATE = process.env.MP3_BITRATE || '192k';
+const BITRATE = process.env.MP3_BITRATE || '320k';
 const WAV_EXTENSIONS = new Set(['.wav']);
 
 function collectWavs(dir) {

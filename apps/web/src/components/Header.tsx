@@ -4,6 +4,7 @@ const NAV_ITEMS = [
   { label: 'Home', href: '/' },
   { label: 'Events', href: '/events' },
   { label: 'Artists', href: '/artists' },
+  { label: 'Broadcast', href: '/stream' },
 ];
 
 export function Header() {

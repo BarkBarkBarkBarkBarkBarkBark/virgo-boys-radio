@@ -28,6 +28,8 @@ function PauseIcon() {
 export function PlayerBar() {
   const {
     enabled,
+    connected,
+    transport,
     message,
     status,
     amplitude,
@@ -35,7 +37,7 @@ export function PlayerBar() {
     skipTrack,
   } = useAudio();
 
-  const isLive    = !!status?.broadcasterPresent;
+  const isLive    = transport === 'icecast' ? connected : !!status?.broadcasterPresent;
   const listeners = status?.listenerCount ?? 0;
 
   const trackLine = message
@@ -102,20 +104,20 @@ export function PlayerBar() {
         {enabled ? <PauseIcon /> : <PlayIcon />}
       </button>
 
-      <button
+      {transport === 'webrtc' && <button
         type="button"
         onClick={skipTrack}
         className="h-10 px-3 flex items-center justify-center rounded-sm text-[10px] font-mono uppercase tracking-[0.2em] text-stone-700 border border-stone-300 hover:border-stone-500 transition-colors"
         aria-label="Skip track"
       >
         Skip
-      </button>
+      </button>}
 
-      <div className="flex items-center justify-end">
+      {transport === 'webrtc' && <div className="flex items-center justify-end">
         <span className="text-[9px] font-mono uppercase tracking-[0.2em] text-stone-400 whitespace-nowrap">
           {listeners}&nbsp;{listeners === 1 ? 'listener' : 'listeners'}
         </span>
-      </div>
+      </div>}
     </div>
   );
 }

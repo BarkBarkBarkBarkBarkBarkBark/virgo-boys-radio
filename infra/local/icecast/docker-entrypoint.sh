@@ -8,6 +8,7 @@ set -euo pipefail
 : "${ICECAST_ADMIN_EMAIL:=local@wstprtradio.test}"
 : "${ICECAST_LOCATION:=West Port Radio Local Dev}"
 : "${ICECAST_PORT:=8000}"
+: "${ICECAST_MAX_LISTENERS:=1000}"
 
 mkdir -p /var/log/icecast /var/cache/icecast /var/lib/icecast
 chown -R icecast2:icecast /var/log/icecast /var/cache/icecast /var/lib/icecast

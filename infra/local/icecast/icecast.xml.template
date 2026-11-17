@@ -3,7 +3,7 @@
   <admin>${ICECAST_ADMIN_EMAIL}</admin>
 
   <limits>
-    <clients>100</clients>
+    <clients>${ICECAST_MAX_LISTENERS}</clients>
     <sources>4</sources>
     <queue-size>524288</queue-size>
     <client-timeout>30</client-timeout>
@@ -21,6 +21,10 @@
   </authentication>
 
   <hostname>${ICECAST_HOSTNAME}</hostname>
+
+  <http-headers>
+    <header name="Access-Control-Allow-Origin" value="*" />
+  </http-headers>
 
   <listen-socket>
     <port>${ICECAST_PORT}</port>

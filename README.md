@@ -1,84 +1,45 @@
-# West Port Radio (`wst-prt-radio`)
+# Virgo Boys Radio — hi-fi live radio
 
-Always-on jukebox + **browser WebRTC live audio**. One broadcaster at a time; everyone else listens on the site. Fastify holds SQLite state, relays signaling over **`/signal`**, and serves synchronized fallback tracks when nobody is live.
+Virgo Boys Radio provides a **one-tap website listening experience** with an optional Icecast/Liquidsoap public audio transport. Existing WebRTC broadcasting is retained as an **experimental development mode**, not the scalable public listener service.
 
-## Stack
+## Architecture
 
-| Piece | Role |
-|---|---|
-| **Next.js** (`apps/web`) | UI, player, `/stream` broadcaster |
-| **Fastify** (`apps/api`) | REST + WebSocket signaling + autoplay scheduler |
-| **SQLite** | Station / sessions (Fly volume in prod) |
+- **Listener**: Next.js website or future native app → stable public **HTTPS Icecast listener URL** → audio playback and automatic reconnect. Set `NEXT_PUBLIC_STREAM_URL`; without this URL, the inherited WebRTC listening mode remains available for development.
+- **DJ**: XDJ/mixer stereo line out → Scarlett/Steinberg audio interface → BUTT desktop encoder → authorized private live ingest. Run the three-second interface check on `/stream` before connecting BUTT.
+- **Station**: Liquidsoap handles live DJ priority, MP3 playlist fallback and a configurable high-quality stereo output. It pushes **one program** to Icecast; Icecast distributes that output to listeners.
+- **API**: Existing Fastify, SQLite and WebSocket services are retained for administrative features and legacy room compatibility. They are not yet authoritative for Icecast listener counts or program metadata.
 
-Optional extras in Docker (`local_deploy.yaml`): Icecast + jukebox for a classic MP3 mount — not required if you only use in-repo autoplay + WebRTC.
-
-## Repo layout
-
-```
-apps/web     Next.js
-apps/api     Fastify
-packages/shared   shared TS types
-infra/fly, infra/vercel   deploy notes
-```
-
-## Run locally
+## Developer setup
 
 ```bash
 pnpm install
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.local.example apps/web/.env.local
-# Point NEXT_PUBLIC_API_BASE_URL at your API (e.g. http://localhost:3001)
-pnpm dev
+cp local_deploy.env.example local_deploy.env
+docker compose -f local_deploy.yaml up --build
 ```
 
-- **Listen**: open the site, press Play — connects to `GET /public/autoplay` + `ws …/signal`.
-- **Go live**: open **`/stream`**, allow mic, Start — listeners on `station_status` attach via WebRTC.
+Set strong unique passwords in `local_deploy.env` (or use `pnpm local:install` to generate local credentials).
 
-## Deploy API (Fly.io)
+Local dev endpoints:
+- Web: `http://localhost:3000`
+- Public Icecast audio: `http://localhost:8000/radio.mp3`
+- DJ ingest (LAN only): `http://localhost:8005/live`
+- Fastify API: `http://localhost:3001`
 
-From repo root (adjust app name / `fly.toml` as needed):
+Place MP3 fallback tracks in `media/library/`. The local Liquidsoap profile defaults to 320 kbps stereo MP3 output at 48 kHz. Configuring a higher listener limit does **not** by itself provide enough bandwidth for 1,000 listeners.
 
-```bash
-fly deploy
-```
+**Production requires a public HTTPS endpoint and secured remote DJ ingress.** Do not expose port 8005 with its default unencrypted development configuration. See [broadcast architecture](docs/high-fidelity-broadcast.md) and [TODO.md](TODO.md).
 
-Set **`CORS_ALLOWED_ORIGINS`** to your real web origin(s), comma-separated.
+## Easy entry and diagnostic tools
 
-## Sync Untitled.stream Library Into Autoplay
+- One Play button on the homepage and persistent bottom bar.
+- "Test listening connection": browser audio reachability/decode probe, **not** a speed or fidelity certification.
+- `/stream`: guided input device selection, approximately 3-second channel/level check, and private source setup instructions. It does not publish sound from the browser to Icecast.
+- Existing `/stream` WebRTC broadcaster is explicitly labeled experimental when no public Icecast URL has been configured.
 
-The repo includes a first-party sync utility that downloads tracks from Untitled
-project pages and uploads them to the API songs endpoint, so they show up in
-`/public/autoplay` immediately.
+## Deploy
 
-Run from repo root:
+The existing `fly.toml` continues to deploy the Fastify API, **not** an Icecast origin or relay. The Next.js frontend can remain on Vercel. Provide `NEXT_PUBLIC_STREAM_URL=https://your-controlled-radio-host/radio.mp3` at web build time.
 
-```bash
-API_BASE_URL=https://wst-prt-radio.fly.dev \
-UNTITLED_LIBRARY_URL=https://untitled.stream/library \
-UNTITLED_COOKIE='session=...' \
-API_ADMIN_USER=marco \
-API_ADMIN_PASS='...' \
-pnpm run sync:untitled
-```
-
-Notes:
-
-- For private libraries/projects, `UNTITLED_COOKIE` is required.
-- For public project URLs, you can skip cookie auth and provide
-	`UNTITLED_PROJECT_URLS` (comma-separated) instead.
-- Use `UNTITLED_DRY_RUN=1` first to preview what will be imported.
-
-## Deploy web (Vercel)
-
-Root directory **`apps/web`**. Env:
-
-- `NEXT_PUBLIC_API_BASE_URL` — `https://your-api.fly.dev`
-- `NEXT_PUBLIC_PUBLIC_SITE_URL` — public site URL
-
-## WebRTC note
-
-Browsers use **ICE** internally for peer connections. This codebase keeps it simple: **public Google STUN** is baked into the web bundle so you don’t configure anything server-side for NAT traversal. If some listeners still can’t hear live audio on cellular / strict networks, add a hosted **TURN** service later and extend `RTCPeerConnection` `iceServers` in the web app — there is no separate “ICE API” on the Fly service.
-
-## API docs
-
-Interactive: run the API and open **`/docs`** (served from `apps/api/openapi.yaml`).
+Keep Icecast source passwords and DJ passwords in private host configuration, never in `NEXT_PUBLIC_*`. See [TODO.md](TODO.md) for provider prerequisites, listener testing, source authentication and redundancy.

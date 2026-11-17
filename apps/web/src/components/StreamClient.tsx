@@ -287,12 +287,13 @@ export function StreamClient() {
     if (!peerId) return;
     setIsStarting(true); setMessage('Requesting microphone access\u2026');
     try {
-      const isInterface = hostDeviceId !== '' && hostDeviceId !== 'default';
       const audioConstraints: MediaTrackConstraints = {
         ...(hostDeviceId ? { deviceId: { exact: hostDeviceId } } : {}),
-        echoCancellation: !isInterface,
-        noiseSuppression: !isInterface,
-        autoGainControl: !isInterface,
+        channelCount: { ideal: 2 },
+        sampleRate: { ideal: 48000 },
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
       };
       const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false });
       // Re-enumerate now that permission is granted — gets real device labels.
@@ -453,9 +454,7 @@ export function StreamClient() {
                 </option>
               ))}
             </select>
-            {hostDeviceId && hostDeviceId !== 'default' && (
-              <span className="mt-1 inline-block text-xs text-emerald-600">DSP off for interfaces and virtual cables</span>
-            )}
+            <span className="mt-1 inline-block text-xs text-emerald-600">Speech DSP disabled for music; browser stereo is best-effort.</span>
           </label>
 
           <label className="block text-sm text-muted">

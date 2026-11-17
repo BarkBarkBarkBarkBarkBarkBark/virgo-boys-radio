@@ -116,6 +116,10 @@ write_stack_env() {
   local lan_ip="$1"
   cat > "$STACK_ENV_FILE" <<EOF
 ICECAST_SOURCE_PASSWORD=$(random_text_secret)
+DJ_SOURCE_PASSWORD=$(random_text_secret)
+DJ_HARBOR_PORT=8005
+JUKEBOX_BITRATE=320
+ICECAST_MAX_LISTENERS=1000
 ICECAST_ADMIN_PASSWORD=$(random_text_secret)
 ICECAST_RELAY_PASSWORD=$(random_text_secret)
 ICECAST_HOSTNAME=$lan_ip
@@ -150,6 +154,9 @@ write_web_env() {
 NEXT_PUBLIC_API_BASE_URL=http://$lan_ip:3001
 NEXT_PUBLIC_PUBLIC_SITE_URL=http://$lan_ip:3000
 NEXT_PUBLIC_STREAM_URL=http://$lan_ip:8000/radio.mp3
+NEXT_PUBLIC_BROADCAST_HOST=$lan_ip
+NEXT_PUBLIC_BROADCAST_PORT=8005
+NEXT_PUBLIC_BROADCAST_MOUNT=/live
 EOF
 }
 
@@ -222,19 +229,21 @@ print_summary() {
   local lan_ip="$1"
   local source_password="$2"
   local admin_password="$3"
+  local dj_password="$4"
   cat <<EOF
 
 Local stack ready.
 
 Services started by this script:
   - icecast:    http://$lan_ip:8000
-  - jukebox:    local MP3 library feeder -> /radio.mp3
+  - jukebox:    320 kbps stereo station output and live DJ priority
   - web:        http://$lan_ip:3000
   - api:        http://$lan_ip:3001
   - api docs:   http://$lan_ip:3001/docs
 
 Stream endpoints:
   - listener URL:  http://$lan_ip:8000/radio.mp3
+  - DJ ingest URL: http://$lan_ip:8005/live (LAN only)
   - admin UI:      http://$lan_ip:8000/admin/
   - media folder:  $ROOT_DIR/media/library
 
@@ -245,13 +254,18 @@ To actually send audio from one device to another, use one source client:
 Jukebox behavior:
   - the `jukebox` container watches `media/library`
   - added MP3 files are picked up automatically
-  - stop the `jukebox` service if you want a live encoder to own `/radio.mp3`
+  - DJs send their input to Liquidsoap Harbor on /live; Liquidsoap owns /radio.mp3
+  - do NOT expose the unencrypted Harbor ingest port to the public internet
 
-Icecast source settings:
+DJ source settings (BUTT -> Liquidsoap Harbor):
   - host:          $lan_ip
-  - port:          8000
-  - mount:         /radio.mp3
+  - port:          8005
+  - mount:         /live
   - source user:   source
+  - source pass:   $dj_password
+
+Internal Liquidsoap -> Icecast settings:
+  - mount:         /radio.mp3
   - source pass:   $source_password
   - admin user:    admin
   - admin pass:    $admin_password
@@ -328,7 +342,7 @@ if [[ "$START_SERVICES" -eq 1 ]]; then
   wait_for_http "http://localhost:3001/health" 'API' || true
   wait_for_http "http://localhost:3000/" 'Web UI' || true
 
-  print_summary "$LAN_IP" "$(get_stack_value ICECAST_SOURCE_PASSWORD)" "$(get_stack_value ICECAST_ADMIN_PASSWORD)"
+  print_summary "$LAN_IP" "$(get_stack_value ICECAST_SOURCE_PASSWORD)" "$(get_stack_value ICECAST_ADMIN_PASSWORD)" "$(get_stack_value DJ_SOURCE_PASSWORD)"
   open_local_ui
 else
   log "preparation complete; services were not started"
