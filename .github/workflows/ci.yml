@@ -29,7 +29,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build shared package
-        run: pnpm --filter @wstprtradio/shared build
+        run: pnpm --filter @virgo-boys-radio/shared build
 
       - name: Typecheck
         run: pnpm typecheck
@@ -38,7 +38,7 @@ jobs:
         run: pnpm test
 
       - name: Build API
-        run: pnpm --filter @wstprtradio/api build
+        run: pnpm --filter @virgo-boys-radio/api build
 
       - name: Build web
-        run: pnpm --filter @wstprtradio/web build
+        run: pnpm --filter @virgo-boys-radio/web build

@@ -5,8 +5,8 @@ set -euo pipefail
 : "${ICECAST_ADMIN_PASSWORD:?ICECAST_ADMIN_PASSWORD is required}"
 : "${ICECAST_RELAY_PASSWORD:?ICECAST_RELAY_PASSWORD is required}"
 : "${ICECAST_HOSTNAME:=localhost}"
-: "${ICECAST_ADMIN_EMAIL:=local@wstprtradio.test}"
-: "${ICECAST_LOCATION:=West Port Radio Local Dev}"
+: "${ICECAST_ADMIN_EMAIL:=local@virgo-boys-radio.test}"
+: "${ICECAST_LOCATION:=Virgo Boys Radio Local Dev}"
 : "${ICECAST_PORT:=8000}"
 : "${ICECAST_MAX_LISTENERS:=1000}"
 
