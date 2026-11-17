@@ -62,5 +62,6 @@ jobs:
 
       - name: Container logs on failure
         if: failure()
-        run: docker logs virgo-icecast-test || true
+        run: |
+          docker logs virgo-icecast-test || true
           docker exec virgo-icecast-test sh -c 'cat /tmp/icecast-logs/error.log || true; ps -ef || true' || true
