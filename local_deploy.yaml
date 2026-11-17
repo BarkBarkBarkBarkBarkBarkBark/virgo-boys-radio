@@ -5,7 +5,7 @@
 # 1. docker compose -f local_deploy.yaml run --rm bootstrap
 # 2. docker compose -f local_deploy.yaml up -d icecast jukebox api web
 
-name: virgoboysradio-local
+name: virgo-boys-radio-local
 
 services:
   bootstrap:
