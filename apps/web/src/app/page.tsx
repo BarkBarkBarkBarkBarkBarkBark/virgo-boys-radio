@@ -1,13 +1,16 @@
 'use client';
 
+import Link from 'next/link';
 import { Header } from '@/components/Header';
+import { ConnectionCheck } from '@/components/ConnectionCheck';
+import { USE_ICECAST } from '@/lib/streamConfig';
 import { Footer } from '@/components/Footer';
 import { VinylRecord } from '@/components/VinylRecord';
 import { InkyHalo } from '@/components/InkyHalo';
 import { useAudio } from '@/lib/AudioProvider';
 
 export default function HomePage() {
-  const { status, amplitude, enabled, setEnabled, playlist, currentFallbackIndex, skipTrack } = useAudio();
+  const { status, amplitude, enabled, setEnabled, playlist, currentFallbackIndex, skipTrack, transport, message } = useAudio();
   const stationState = status?.stationState ?? 'open';
   const listeners = status?.listenerCount ?? 0;
 
@@ -28,8 +31,8 @@ export default function HomePage() {
                   Play
                 </h1>
                 <div className="flex items-center justify-center gap-4 text-[0.65rem] font-mono uppercase tracking-[0.25em] text-muted">
-                  <span>{stationState === 'live' ? 'Live' : 'On Air'}</span>
-                  <span>{listeners} listening</span>
+                  <span>{transport === 'icecast' ? 'Radio stream' : stationState === 'live' ? 'Live' : 'On Air'}</span>
+                  {transport === 'webrtc' && <span>{listeners} listening</span>}
                 </div>
               </div>
 
@@ -45,19 +48,20 @@ export default function HomePage() {
                     {enabled ? 'Pause' : 'Play'}
                   </button>
 
-                  <button
+                  {transport === 'webrtc' && <button
                     type="button"
                     onClick={skipTrack}
                     className="border border-ink/40 px-6 py-4 text-xs font-bold uppercase tracking-[0.28em] text-ink transition-colors hover:border-accent-red hover:text-accent-red"
                   >
                     Skip
-                  </button>
+                  </button>}
                 </div>
 
                 <p className="min-h-[1rem] text-xs font-mono text-muted truncate max-w-md">
-                  {currentTrack ? currentTrack.title : ''}
+                  {transport === 'icecast' ? message : currentTrack ? currentTrack.title : ''}
                 </p>
-                <p className="text-[10px] font-mono uppercase tracking-[0.22em] text-muted"></p>
+                {USE_ICECAST && <ConnectionCheck />}
+                <p className="text-xs text-muted">Want to DJ? <Link href="/stream" className="underline font-semibold">Open the broadcast booth</Link>.</p>
               </div>
             </div>
           </section>

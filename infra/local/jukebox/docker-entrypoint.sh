@@ -2,6 +2,9 @@
 set -euo pipefail
 
 : "${ICECAST_SOURCE_PASSWORD:?ICECAST_SOURCE_PASSWORD is required}"
+: "${DJ_SOURCE_PASSWORD:?DJ_SOURCE_PASSWORD is required}"
+: "${DJ_HARBOR_PORT:=8005}"
+: "${JUKEBOX_BITRATE:=320}"
 : "${JUKEBOX_ICECAST_HOST:=icecast}"
 : "${JUKEBOX_ICECAST_PORT:=8000}"
 : "${JUKEBOX_MOUNT:=/radio.mp3}"
@@ -11,6 +14,9 @@ set -euo pipefail
 : "${JUKEBOX_MEDIA_DIR:=/music}"
 : "${JUKEBOX_PLAYLIST_MODE:=randomize}"
 
+export DJ_SOURCE_PASSWORD
+export DJ_HARBOR_PORT
+export JUKEBOX_BITRATE
 export ICECAST_SOURCE_PASSWORD
 export JUKEBOX_ICECAST_HOST
 export JUKEBOX_ICECAST_PORT

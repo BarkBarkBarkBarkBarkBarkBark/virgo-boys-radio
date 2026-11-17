@@ -49,6 +49,9 @@ services:
       context: ./infra/local/jukebox
     env_file:
       - local_deploy.env
+    # Only for LAN testing; do not expose unencrypted source ingest to the internet.
+    ports:
+      - "8005:8005"
     volumes:
       - ./media/library:/music
     depends_on:

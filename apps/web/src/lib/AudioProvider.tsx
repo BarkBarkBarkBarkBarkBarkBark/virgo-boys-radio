@@ -23,11 +23,13 @@ import {
 } from 'react';
 import type { AlwaysOnPlaylist, SignalServerMessage, StationStatus } from '@wstprtradio/shared';
 import { API_BASE, getSignalUrl, apiFetch } from '@/lib/api';
+import { PUBLIC_STREAM_URL, USE_ICECAST } from '@/lib/streamConfig';
 import { getOrCreatePeerId } from '@/lib/peerId';
 
 // ─── Public interface ────────────────────────────────────────────────────────
 
 export interface AudioContextValue {
+  transport: 'icecast' | 'webrtc';
   enabled: boolean;
   connected: boolean;
   message: string;
@@ -76,7 +78,7 @@ function pickRandomIndex(length: number, exclude?: number): number {
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
-export function AudioProvider({ children }: { children: React.ReactNode }) {
+function LegacyAudioProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus]             = useState<StationStatus | null>(null);
   const [playlist, setPlaylist]         = useState<AlwaysOnPlaylist | null>(null);
   const [enabled, setEnabledRaw]        = useState(false);
@@ -439,6 +441,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   return (
     <AudioCtx.Provider
       value={{
+        transport: 'webrtc',
         enabled,
         connected,
         message,
@@ -456,4 +459,130 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AudioCtx.Provider>
   );
+}
+
+
+/**
+ * Public radio transport: one HTTP audio connection per listener, delivered
+ * by the Icecast host. Never use broadcaster-to-listener WebRTC fanout here.
+ */
+function IcecastAudioProvider({ children }: { children: React.ReactNode }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playingWanted = useRef(false);
+  const retryTimer = useRef<number | null>(null);
+  const stallTimer = useRef<number | null>(null);
+  const attempts = useRef(0);
+  const [enabled, setEnabledState] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [message, setMessage] = useState('Tap Play to listen.');
+
+  const clearTimers = useCallback(() => {
+    if (retryTimer.current !== null) window.clearTimeout(retryTimer.current);
+    if (stallTimer.current !== null) window.clearTimeout(stallTimer.current);
+    retryTimer.current = null;
+    stallTimer.current = null;
+  }, []);
+
+  const start = useCallback(() => {
+    const audio = audioRef.current;
+    if (!playingWanted.current || !audio) return;
+    audio.src = PUBLIC_STREAM_URL;
+    audio.load();
+    void audio.play().catch(() => {
+      if (playingWanted.current) setMessage('Could not start audio. Tap Pause, then Play again.');
+    });
+  }, []);
+
+  const retry = useCallback(() => {
+    if (!playingWanted.current || retryTimer.current !== null) return;
+    const delay = Math.min(15000, 2000 * Math.pow(2, Math.min(attempts.current++, 3)));
+    setMessage('Connection interrupted. Reconnecting…');
+    retryTimer.current = window.setTimeout(() => {
+      retryTimer.current = null;
+      start();
+    }, delay);
+  }, [start]);
+
+  const setEnabled = useCallback((next: boolean) => {
+    playingWanted.current = next;
+    setEnabledState(next);
+    clearTimers();
+    if (next) {
+      attempts.current = 0;
+      setMessage('Connecting to high-quality radio…');
+      start(); // Initiate play during the user's click gesture for mobile browsers.
+    } else {
+      audioRef.current?.pause();
+      audioRef.current?.removeAttribute('src');
+      audioRef.current?.load();
+      setConnected(false);
+      setMessage('Paused. Tap Play to listen.');
+    }
+  }, [clearTimers, start]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const onPlaying = () => {
+      clearTimers();
+      attempts.current = 0;
+      setConnected(true);
+      setMessage('Connected to radio.');
+    };
+    const onBuffer = () => {
+      if (!playingWanted.current) return;
+      setConnected(false);
+      setMessage('Buffering high-quality audio…');
+      if (stallTimer.current === null) {
+        stallTimer.current = window.setTimeout(() => {
+          stallTimer.current = null;
+          if (playingWanted.current && audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) retry();
+        }, 12000);
+      }
+    };
+    const onError = () => { setConnected(false); retry(); };
+    const onPause = () => setConnected(false);
+    audio.addEventListener('playing', onPlaying);
+    audio.addEventListener('waiting', onBuffer);
+    audio.addEventListener('stalled', onBuffer);
+    audio.addEventListener('error', onError);
+    audio.addEventListener('ended', onError);
+    audio.addEventListener('pause', onPause);
+    return () => {
+      clearTimers();
+      audio.pause();
+      audio.removeEventListener('playing', onPlaying);
+      audio.removeEventListener('waiting', onBuffer);
+      audio.removeEventListener('stalled', onBuffer);
+      audio.removeEventListener('error', onError);
+      audio.removeEventListener('ended', onError);
+      audio.removeEventListener('pause', onPause);
+    };
+  }, [clearTimers, retry]);
+
+  return (
+    <AudioCtx.Provider value={{
+      transport: 'icecast',
+      enabled,
+      connected,
+      message,
+      status: null, // Legacy room status is not the live Icecast listener count.
+      playlist: null,
+      currentFallbackIndex: 0,
+      audioRef,
+      amplitude: 0, // Never risk Web Audio silence on a cross-origin stream.
+      setEnabled,
+      handleTrackEnded: () => {},
+      skipTrack: () => {},
+    }}>
+      <audio ref={audioRef} preload="none" className="hidden" />
+      {children}
+    </AudioCtx.Provider>
+  );
+}
+
+export function AudioProvider({ children }: { children: React.ReactNode }) {
+  return USE_ICECAST
+    ? <IcecastAudioProvider>{children}</IcecastAudioProvider>
+    : <LegacyAudioProvider>{children}</LegacyAudioProvider>;
 }
