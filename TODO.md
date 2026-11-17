@@ -40,3 +40,13 @@ This checklist tracks **missing infrastructure and unverified requirements**. Ad
 - [ ] Optional modern Opus 192–256 kbps output and compatibility fallback; ABX compare at low and high bitrates.
 - [ ] Store lossless artist masters securely, avoid transcoding a low-bitrate MP3 into another lossy MP3, add true-peak QC; keep sensitive masters out of public code/history.
 - [ ] Finalize branding (repo currently inherited `Virgo Boys Radio` labels from previous project), DNS and legal policies before public launch.
+## Fly single-Machine Icecast pilot
+
+- [x] Prepare Docker image with Caddy and Icecast; keep existing Fastify API public hostname unchanged.
+- [x] Add loopback-only Icecast config and Caddy path routing for HTTPS /radio.mp3.
+- [x] Create a Docker container smoke workflow to test the API and Icecast mount.
+- [ ] **Deploy this image to Fly**. GitHub commits do not install packages on a running Machine, and this ChatGPT Fly connection does not authorize Machine execution or image deployment.
+- [ ] Set strong ICECAST_SOURCE_PASSWORD, ICECAST_RELAY_PASSWORD, ICECAST_ADMIN_PASSWORD and ICECAST_ENABLED=true via Fly secrets after initial API health check.
+- [ ] Test actual HTTPS PUT source ingest from BUTT (320 kbps stereo) and listen from another device/network.
+- [ ] Set NEXT_PUBLIC_STREAM_URL=https://wst-prt-radio.fly.dev/radio.mp3 in Vercel only after live source playback works.
+- [ ] Build a Liquidsoap AutoDJ fallback and repeat load tests with API and stream sharing 512 MB RAM/1 CPU.
