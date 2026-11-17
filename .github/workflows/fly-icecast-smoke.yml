@@ -48,6 +48,7 @@ jobs:
           done
           if [[ "$healthy" != 1 ]]; then
             docker logs virgo-icecast-test
+            docker exec virgo-icecast-test sh -c 'cat /tmp/icecast-logs/error.log || true; ps -ef || true' || true
             exit 1
           fi
           code="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:13001/radio.mp3)"
@@ -62,3 +63,4 @@ jobs:
       - name: Container logs on failure
         if: failure()
         run: docker logs virgo-icecast-test || true
+          docker exec virgo-icecast-test sh -c 'cat /tmp/icecast-logs/error.log || true; ps -ef || true' || true
