@@ -1,0 +1,33 @@
+spec_version: "1.0"
+
+project:
+  name: west-port-radio
+  objective: >
+    Public radio site with synchronized always-on playback, optional browser
+    microphone broadcast over WebRTC, and Fastify + SQLite control plane on Fly.io.
+
+  stack:
+    monorepo: true
+    package_manager: pnpm
+    language: TypeScript
+    frontend: Next.js App Router
+    backend: Fastify on Fly.io
+    database: SQLite (better-sqlite3, persistent volume on Fly)
+    realtime: WebSocket /signal for WebRTC signaling and station fanout
+
+  canonical_paths:
+    listener_audio: AudioProvider + PlayerBar (fallback HTTP autoplay + live WebRTC)
+    broadcaster_ui: GET /stream (StreamClient)
+    api_health: GET /health
+    api_status: GET /public/status
+
+repo:
+  apps:
+    - apps/web
+    - apps/api
+  packages:
+    - packages/shared
+
+deployment:
+  api: Fly.io (Dockerfile apps/api/Dockerfile)
+  web: Vercel or static host (NEXT_PUBLIC_* env)

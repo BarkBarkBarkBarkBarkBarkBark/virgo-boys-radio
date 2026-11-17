@@ -1,0 +1,177 @@
+openapi: 3.1.0
+info:
+  title: West Port Radio API
+  version: 1.0.0
+  description: |
+    Fastify control plane: always-on jukebox streaming, station status, WebRTC
+    signaling WebSocket (`/signal`), and open admin controls for local-first ops.
+
+servers:
+  - url: http://localhost:3001
+    description: Local
+tags:
+  - name: Health
+  - name: Public
+  - name: Auth
+  - name: Admin
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Cheap liveness check (no DB access)
+      responses:
+        '200':
+          description: '{ status: "ok", timestamp }'
+
+  /ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe — pings SQLite and returns station status
+      responses:
+        '200':
+          description: '{ status: "ready", timestamp, station }'
+        '503':
+          description: '{ status: "unready", reason }'
+
+  /public/status:
+    get:
+      tags: [Public]
+      summary: Station status (listeners, broadcaster slot, optional always-on sync)
+      responses:
+        '200':
+          description: JSON StationStatus from `@wstprtradio/shared`
+
+  /public/autoplay:
+    get:
+      tags: [Public]
+      summary: Playlist manifest for always-on fallback audio
+      responses:
+        '200':
+          description: AlwaysOnPlaylist JSON
+
+  /public/autoplay/files/{filename}:
+    get:
+      tags: [Public]
+      summary: Stream one jukebox audio file
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Audio bytes (Content-Type set per file)
+        '404':
+          description: Unknown file
+
+  /public/autoplay/next:
+    post:
+      tags: [Public]
+      summary: Advance jukebox scheduler (broadcasts new state over `/signal`)
+      responses:
+        '200':
+          description: Always-on scheduler state JSON
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Sign in with username and password (sets session cookie)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: '{ ok: true, username }'
+        '400':
+          description: Invalid payload
+        '401':
+          description: Invalid username or password
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Destroy the current session
+      responses:
+        '200':
+          description: '{ ok: true }'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Return the current admin session (or 401)
+      responses:
+        '200':
+          description: '{ username }'
+        '401':
+          description: Unauthorized
+
+  /admin/status:
+    get:
+      tags: [Admin]
+      summary: Extended station status (requires admin session)
+      responses:
+        '200':
+          description: AdminStatus JSON
+        '401':
+          description: Unauthorized
+
+  /admin/open:
+    post:
+      tags: [Admin]
+      summary: Set station open for broadcasters
+      responses:
+        '200':
+          description: '{ ok, status }'
+
+  /admin/close:
+    post:
+      tags: [Admin]
+      summary: Close station (disconnect broadcaster)
+      responses:
+        '200':
+          description: '{ ok, status }'
+
+  /admin/kick:
+    post:
+      tags: [Admin]
+      summary: Kick active broadcaster
+      responses:
+        '200':
+          description: '{ ok, status }'
+
+  /admin/block:
+    post:
+      tags: [Admin]
+      summary: Block current broadcaster peer
+      responses:
+        '200':
+          description: '{ ok, status }'
+
+  /admin/clear-blocks:
+    post:
+      tags: [Admin]
+      summary: Clear blocked peers list
+      responses:
+        '200':
+          description: '{ ok, status }'
+
+  /signal:
+    get:
+      tags: [Public]
+      summary: WebSocket — WebRTC signaling + `station_status` fanout
+      description: |
+        Browser upgrade to WebSocket. Message shapes are defined in
+        `packages/shared/src/types/liveRoom.ts` (`SignalClientMessage`,
+        `SignalServerMessage`).
+      responses:
+        '101':
+          description: Switching Protocols

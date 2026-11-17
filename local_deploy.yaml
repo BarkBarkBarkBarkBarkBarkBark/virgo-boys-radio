@@ -1,0 +1,129 @@
+# Local development orchestration for the monorepo plus a lightweight Icecast
+# backend so the full local stack can run on Apple Silicon and similar hosts.
+#
+# Typical flow:
+# 1. docker compose -f local_deploy.yaml run --rm bootstrap
+# 2. docker compose -f local_deploy.yaml up -d icecast jukebox api web
+
+name: wstprtradio-local
+
+services:
+  bootstrap:
+    image: node:20-bookworm
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - root_node_modules:/workspace/node_modules
+      - api_node_modules:/workspace/apps/api/node_modules
+      - web_node_modules:/workspace/apps/web/node_modules
+      - shared_node_modules:/workspace/packages/shared/node_modules
+      - ui_node_modules:/workspace/packages/ui/node_modules
+      - pnpm_store:/root/.local/share/pnpm/store
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        corepack enable
+        corepack prepare pnpm@10.33.2 --activate
+        pnpm install --frozen-lockfile
+        pnpm --filter @wstprtradio/shared build
+    profiles:
+      - bootstrap
+
+  icecast:
+    build:
+      context: ./infra/local/icecast
+    env_file:
+      - local_deploy.env
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  jukebox:
+    build:
+      context: ./infra/local/jukebox
+    env_file:
+      - local_deploy.env
+    volumes:
+      - ./media/library:/music
+    depends_on:
+      icecast:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    image: node:20-bookworm
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - root_node_modules:/workspace/node_modules
+      - api_node_modules:/workspace/apps/api/node_modules
+      - web_node_modules:/workspace/apps/web/node_modules
+      - shared_node_modules:/workspace/packages/shared/node_modules
+      - ui_node_modules:/workspace/packages/ui/node_modules
+      - pnpm_store:/root/.local/share/pnpm/store
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - apps/api/.env
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        corepack enable
+        corepack prepare pnpm@10.33.2 --activate
+        mkdir -p apps/api/data
+        pnpm --filter @wstprtradio/api dev
+    ports:
+      - "3001:3001"
+    depends_on:
+      icecast:
+        condition: service_healthy
+      jukebox:
+        condition: service_started
+    restart: unless-stopped
+
+  web:
+    image: node:20-bookworm
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - root_node_modules:/workspace/node_modules
+      - api_node_modules:/workspace/apps/api/node_modules
+      - web_node_modules:/workspace/apps/web/node_modules
+      - shared_node_modules:/workspace/packages/shared/node_modules
+      - ui_node_modules:/workspace/packages/ui/node_modules
+      - pnpm_store:/root/.local/share/pnpm/store
+    env_file:
+      - apps/web/.env.local
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        corepack enable
+        corepack prepare pnpm@10.33.2 --activate
+        pnpm --filter @wstprtradio/web dev
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  root_node_modules:
+  api_node_modules:
+  web_node_modules:
+  shared_node_modules:
+  ui_node_modules:
+  pnpm_store:

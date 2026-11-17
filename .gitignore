@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+.next/
+out/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+local_deploy.env
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# TypeScript
+*.tsbuildinfo
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3
+
+# Misc
+.turbo/
+.vercel
+.env*.local
+
+# Uploaded audio lives on the Fly volume (SONGS_DIR), not in git.
+/songs/**/*.mp3
+/songs/**/*.wav
+/songs/**/*.ogg
+/songs/**/*.oga
+/songs/**/*.flac
+/songs/**/*.m4a
