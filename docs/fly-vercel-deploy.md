@@ -27,7 +27,7 @@ cd wst-prt-radio
 fly deploy --config fly.toml
 ```
 
-The Dockerfile at [`apps/api/Dockerfile`](../apps/api/Dockerfile) is referenced by `fly.toml` and copies the whole monorepo, builds `@wstprtradio/shared` then `@wstprtradio/api`, and serves on port 3001.
+The Dockerfile at [`apps/api/Dockerfile`](../apps/api/Dockerfile) is referenced by `fly.toml` and copies the whole monorepo, builds `@virgo-boys-radio/shared` then `@virgo-boys-radio/api`, and serves on port 3001.
 
 ### One-time setup
 
