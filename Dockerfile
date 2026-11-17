@@ -1,5 +1,9 @@
 FROM node:20-alpine
 
+# Icecast and Caddy run beside the existing Fastify API on the same Fly Machine.
+# Packages must be in the image, never installed interactively into the VM.
+RUN apk add --no-cache icecast caddy gettext
+
 RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
 
 WORKDIR /app
@@ -20,4 +24,4 @@ COPY apps/api/src/db/migrations ./apps/api/dist/db/migrations
 
 EXPOSE 3001
 
-CMD ["node", "apps/api/dist/index.js"]
+CMD ["sh", "/app/infra/fly/start.sh"]
