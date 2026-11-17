@@ -26,7 +26,7 @@ export default function HomePage() {
           <section className="w-full border border-ink/12 bg-white/75 candle-card">
             <div className="flex flex-col items-center gap-8 px-6 py-10 text-center sm:px-10 sm:py-14">
               <div className="space-y-3">
-                <p className="text-[0.62rem] uppercase tracking-[0.42em] text-muted font-mono">West Port Radio</p>
+                <p className="text-[0.62rem] uppercase tracking-[0.42em] text-muted font-mono">Virgo Boys Radio</p>
                 <h1 className="text-5xl font-bold uppercase tracking-[0.18em] text-ink leading-none sm:text-6xl">
                   Play
                 </h1>

@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * AudioProvider — global audio context for West Port Radio.
+ * AudioProvider — global audio context for Virgo Boys Radio.
  *
  * All WebRTC / WebSocket / fallback-audio logic lives here so it survives
  * page navigation and feeds the persistent PlayerBar and vinyl glow.

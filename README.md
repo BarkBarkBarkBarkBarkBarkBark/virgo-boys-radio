@@ -9,6 +9,13 @@ Virgo Boys Radio provides a **one-tap website listening experience** with an opt
 - **Station**: Liquidsoap handles live DJ priority, MP3 playlist fallback and a configurable high-quality stereo output. It pushes **one program** to Icecast; Icecast distributes that output to listeners.
 - **API**: Existing Fastify, SQLite and WebSocket services are retained for administrative features and legacy room compatibility. They are not yet authoritative for Icecast listener counts or program metadata.
 
+
+## Temporary Fly.io backend
+
+The Virgo Boys Radio website is deployed from `apps/web` on Vercel and currently reuses the existing Fastify API at `https://wst-prt-radio.fly.dev`. The `wst-prt-radio` Fly service name and internal `@wstprtradio/*` workspace package IDs remain unchanged for compatibility: they are **not** the public station brand.
+
+Set `NEXT_PUBLIC_API_BASE_URL=https://wst-prt-radio.fly.dev` in Vercel and permit `https://virgo-boys-radio.vercel.app` in Fly's `CORS_ALLOWED_ORIGINS`, preserving the earlier allowed origins. Public read-only routes such as `/public/status` need **no transferred API secret**. Fly `SESSION_SECRET` and admin passwords must remain on Fly; never copy them into `NEXT_PUBLIC_*` or into a public web bundle. Authenticated admin sessions across separate Vercel/Fly domains may require a same-site API proxy or custom API domain due to third-party cookie restrictions; test on Safari.
+
 ## Developer setup
 
 ```bash

@@ -4,11 +4,11 @@ import { AudioProvider } from '@/lib/AudioProvider';
 import { PlayerBar } from '@/components/PlayerBar';
 
 export const metadata: Metadata = {
-  title: 'West Port Radio',
-  description: 'West Port Radio',
+  title: 'Virgo Boys Radio',
+  description: 'Independent radio for live DJ sets and original music.',
   openGraph: {
-    title: 'West Port Radio',
-    description: 'West Port Radio',
+    title: 'Virgo Boys Radio',
+    description: 'Independent radio for live DJ sets and original music.',
     type: 'website',
   },
 };

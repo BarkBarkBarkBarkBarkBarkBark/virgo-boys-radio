@@ -13,12 +13,12 @@ export function Header() {
       <div className="max-w-7xl mx-auto flex flex-wrap items-center gap-y-3 gap-x-6 justify-between">
         <Link href="/" className="group">
           <p className="text-lg font-bold tracking-[0.16em] text-ink uppercase leading-tight group-hover:text-accent-red transition-colors">
-            WEST PORT RADIO
+            VIRGO BOYS RADIO
           </p>
         </Link>
 
         <p className="hidden md:block text-xs text-muted tracking-[0.18em] uppercase">
-          Kansas City, Missouri
+          Independent underground radio
         </p>
 
         <nav className="flex items-center gap-1" aria-label="Site navigation">

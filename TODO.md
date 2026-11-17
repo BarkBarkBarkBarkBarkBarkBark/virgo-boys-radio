@@ -2,6 +2,17 @@
 
 This checklist tracks **missing infrastructure and unverified requirements**. Adding a URL or raising a config limit is not a fidelity or capacity guarantee.
 
+
+## Temporary Fly backend / branding
+
+- [x] Connect the Vercel website to the existing `wst-prt-radio.fly.dev` Fastify API via `NEXT_PUBLIC_API_BASE_URL`.
+- [x] Add `https://virgo-boys-radio.vercel.app` to the Fly `CORS_ALLOWED_ORIGINS` secret, preserving the original production site origins.
+- [ ] Verify the live API's `/health`, `/public/status`, events and artists responses from the deployed Virgo website and in mobile Safari; CORS configuration alone does not prove reachability.
+- [ ] Verify authenticated admin sign-in on Safari with the API on a separate fly.dev origin. Third-party cookie blocking may require a same-site reverse proxy or an API subdomain owned by the station.
+- [ ] Decide whether to migrate the legacy Fly service name, database and `@wstprtradio` internal package identifiers. These are not visible station branding and are intentionally left untouched to avoid breaking the running backend.
+- [ ] Configure the production public HTTPS Icecast stream; `NEXT_PUBLIC_API_BASE_URL` is **not** an audio streaming URL.
+- [ ] Do not migrate Fly's `SESSION_SECRET`, `ADMIN_USERS`, or DJ ingest passwords to Vercel. Only add server-side secrets there if a future trusted Vercel server feature specifically needs its own credential.
+
 ## External setup required before launch
 
 - [ ] Choose an Icecast host (managed or self-hosted) with sustained 1,000-listener capacity at 320 kbps MP3, adequate egress (~320 Mbps payload plus overhead), no unanticipated usage caps, and a realistic reliability SLA. Confirm by testing rather than marketing claims.
@@ -28,4 +39,4 @@ This checklist tracks **missing infrastructure and unverified requirements**. Ad
 - [ ] Native iOS/Android apps sharing the production stream URL and API; background audio, lock-screen playback, interruption handling, and metadata.
 - [ ] Optional modern Opus 192–256 kbps output and compatibility fallback; ABX compare at low and high bitrates.
 - [ ] Store lossless artist masters securely, avoid transcoding a low-bitrate MP3 into another lossy MP3, add true-peak QC; keep sensitive masters out of public code/history.
-- [ ] Finalize branding (repo currently inherited `West Port Radio` labels from previous project), DNS and legal policies before public launch.
+- [ ] Finalize branding (repo currently inherited `Virgo Boys Radio` labels from previous project), DNS and legal policies before public launch.
