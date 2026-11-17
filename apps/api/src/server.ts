@@ -61,7 +61,7 @@ export async function buildServer() {
   await fastify.register(fastifyCookie);
   await fastify.register(fastifySession, {
     secret: env.SESSION_SECRET,
-    cookieName: 'wstprtradio.sid',
+    cookieName: 'virgoboysradio.sid',
     cookie: {
       // vercel.app (web) and fly.dev (api) are different eTLD+1s, so
       // SameSite=Lax would make the browser silently drop the cookie on

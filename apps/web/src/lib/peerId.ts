@@ -15,9 +15,9 @@
 export type PeerRole = 'listener' | 'broadcaster' | 'guest';
 
 const STORAGE_KEYS: Record<PeerRole, string> = {
-  listener: 'wstprtradio-listener-peer-id',
-  broadcaster: 'wstprtradio-broadcaster-peer-id',
-  guest: 'wstprtradio-guest-peer-id',
+  listener: 'virgoboysradio-listener-peer-id',
+  broadcaster: 'virgoboysradio-broadcaster-peer-id',
+  guest: 'virgoboysradio-guest-peer-id',
 };
 
 export function getOrCreatePeerId(role: PeerRole = 'listener'): string {

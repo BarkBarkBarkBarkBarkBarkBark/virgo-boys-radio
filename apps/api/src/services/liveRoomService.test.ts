@@ -1,7 +1,7 @@
 /**
  * Unit tests for the single-broadcaster state machine.
  *
- * Run: `pnpm --filter @wstprtradio/api test`
+ * Run: `pnpm --filter @virgo-boys-radio/api test`
  *
  * Why node:test instead of vitest: zero new deps, runs in the same Node 20
  * runtime that ships with Fly's Docker image, no jsdom pretense — these tests
@@ -15,7 +15,7 @@ process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'a'.repeat(64);
 
 import { strict as assert } from 'node:assert';
 import { beforeEach, describe, it } from 'node:test';
-import type { SignalServerMessage } from '@wstprtradio/shared';
+import type { SignalServerMessage } from '@virgo-boys-radio/shared';
 
 import { getDb } from '../db/client.js';
 import {

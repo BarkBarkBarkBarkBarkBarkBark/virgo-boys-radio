@@ -1,4 +1,4 @@
-import type { StationState } from '@wstprtradio/shared';
+import type { StationState } from '@virgo-boys-radio/shared';
 
 const LABELS: Record<StationState, string> = {
   closed: 'Closed',

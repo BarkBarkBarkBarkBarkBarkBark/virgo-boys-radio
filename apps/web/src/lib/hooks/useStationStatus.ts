@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { StationStatus } from '@wstprtradio/shared';
+import type { StationStatus } from '@virgo-boys-radio/shared';
 import { apiFetch } from '../api';
 
 const POLL_INTERVAL = 15_000;

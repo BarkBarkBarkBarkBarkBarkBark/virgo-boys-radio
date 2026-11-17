@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { AdminStatus, SignalServerMessage, StationStatus } from '@wstprtradio/shared';
+import type { AdminStatus, SignalServerMessage, StationStatus } from '@virgo-boys-radio/shared';
 import { apiFetch, ApiError, getSignalUrl, API_BASE } from '@/lib/api';
 import { StatusBadge } from './StatusBadge';
 

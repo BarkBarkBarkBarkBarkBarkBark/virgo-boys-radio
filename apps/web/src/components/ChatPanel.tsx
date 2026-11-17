@@ -7,7 +7,7 @@
  * Username is a random adjective+animal combo generated once per session.
  * Backend integration: wire in later by replacing the dispatch/load functions.
  *
- * Styled after the West Port Radio inspiration image:
+ * Styled after the Virgo Boys Radio inspiration image:
  * — Right-side panel, dark bg, bullet avatar, username, timestamp, message.
  */
 

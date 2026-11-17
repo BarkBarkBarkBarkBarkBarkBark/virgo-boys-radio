@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AdminStatus, AuditLogEntry, SignalClientMessage, SignalServerMessage, StationState, StationStatus } from '@wstprtradio/shared';
+import type { AdminStatus, AuditLogEntry, SignalClientMessage, SignalServerMessage, StationState, StationStatus } from '@virgo-boys-radio/shared';
 import { getDb } from '../db/client.js';
 import { writeAudit } from '../lib/audit.js';
 import { getAlwaysOnState } from './autoplayService.js';
