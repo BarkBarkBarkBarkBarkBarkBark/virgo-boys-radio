@@ -1,11 +1,11 @@
 ---
 layout: default
-title: OBS Profile Guide — wstprtradio
+title: OBS Profile Guide — virgoboysradio
 ---
 
-# OBS Profile Guide — wstprtradio
+# OBS Profile Guide — virgoboysradio
 
-Use OBS Studio to stream video + audio to wstprtradio for the live video experience.
+Use OBS Studio to stream video + audio to virgoboysradio for the live video experience.
 
 ## OBS Version
 
@@ -52,7 +52,7 @@ Create scenes for:
 
 1. Press **Start Streaming** in OBS
 2. Wait for the stream to connect (~5 seconds)
-3. Verify on the wstprtradio admin panel that Cloudflare shows "connected"
+3. Verify on the virgoboysradio admin panel that Cloudflare shows "connected"
 4. Notify admin so they can create the live session entry
 5. When done, press **Stop Streaming**
 

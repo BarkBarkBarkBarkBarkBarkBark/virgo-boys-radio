@@ -1,11 +1,11 @@
 ---
 layout: default
-title: Musician Guide — wstprtradio
+title: Musician Guide — virgoboysradio
 ---
 
-# Musician Guide — wstprtradio
+# Musician Guide — virgoboysradio
 
-Welcome! This guide explains how to go live on wstprtradio as a musician or DJ.
+Welcome! This guide explains how to go live on virgoboysradio as a musician or DJ.
 
 ## Option 1: Web DJ (Easiest — Audio Only)
 

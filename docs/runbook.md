@@ -5,7 +5,7 @@ title: Operational runbook
 
 # Runbook
 
-Operational playbook for West Port Radio. Pair this with [`docs/architecture.md`](architecture.md) for the why; this doc is the what-to-type.
+Operational playbook for Virgo Boys Radio. Pair this with [`docs/architecture.md`](architecture.md) for the why; this doc is the what-to-type.
 
 ## Daily smoke check
 
@@ -117,7 +117,7 @@ const rtcConfig: RTCConfiguration = {
     { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
     {
       urls: ['turn:turn.example.com:3478'],
-      username: 'wstprtradio',
+      username: 'virgoboysradio',
       credential: 'shared-secret',
     },
   ],

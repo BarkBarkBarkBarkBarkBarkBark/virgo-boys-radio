@@ -1,6 +1,6 @@
 ---
 layout: default
-title: DNS Checklist — West Port Radio
+title: DNS Checklist — Virgo Boys Radio
 ---
 
 # DNS checklist
