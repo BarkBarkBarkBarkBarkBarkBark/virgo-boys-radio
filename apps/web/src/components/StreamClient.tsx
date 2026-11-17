@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SignalServerMessage, StationStatus } from '@wstprtradio/shared';
+import type { SignalServerMessage, StationStatus } from '@virgo-boys-radio/shared';
 import { getSignalUrl, apiFetch } from '@/lib/api';
 import { getOrCreatePeerId } from '@/lib/peerId';
 import { StatusBadge } from './StatusBadge';

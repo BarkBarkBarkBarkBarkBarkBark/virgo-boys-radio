@@ -64,11 +64,7 @@ const corsPlugin: FastifyPluginAsync = async (fastify) => {
       const allowedOrigins = configuredOrigins.length
         ? configuredOrigins
         : [
-            'https://wstprtradio.com',
-            'https://admin.wstprtradio.com',
-            'https://www.wstprtradio.com',
-            // Vercel deployment — different eTLD+1 from fly.dev
-            'https://wst-prt-radio.vercel.app',
+            'https://virgo-boys-radio.vercel.app',
           ];
 
       callback(null, allowedOrigins.includes(origin));

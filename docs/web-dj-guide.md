@@ -5,7 +5,7 @@ title: Go live from the browser
 
 # Go live from the browser
 
-West Port Radio uses **WebRTC** from the **`/stream`** page (no external “Web DJ” product).
+Virgo Boys Radio uses **WebRTC** from the **`/stream`** page (no external “Web DJ” product).
 
 1. Open the site’s **`/stream`** route.
 2. Tap **Start** and allow microphone access.

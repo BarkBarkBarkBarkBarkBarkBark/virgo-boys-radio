@@ -17,8 +17,8 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
-RUN pnpm --filter @wstprtradio/shared build \
-    && pnpm --filter @wstprtradio/api build
+RUN pnpm --filter @virgo-boys-radio/shared build \
+    && pnpm --filter @virgo-boys-radio/api build
 
 COPY apps/api/src/db/migrations ./apps/api/dist/db/migrations
 

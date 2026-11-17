@@ -1,9 +1,9 @@
 ---
 layout: default
-title: BUTT Fallback Guide — wstprtradio
+title: BUTT Fallback Guide — virgoboysradio
 ---
 
-# BUTT Fallback Guide — wstprtradio
+# BUTT Fallback Guide — virgoboysradio
 
 BUTT (Broadcast Using This Tool) is a free, lightweight streaming client for Windows, macOS, and Linux. Use it when Web DJ is unavailable or when you need to stream from a DAW or mixer.
 

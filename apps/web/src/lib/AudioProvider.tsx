@@ -21,7 +21,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { AlwaysOnPlaylist, SignalServerMessage, StationStatus } from '@wstprtradio/shared';
+import type { AlwaysOnPlaylist, SignalServerMessage, StationStatus } from '@virgo-boys-radio/shared';
 import { API_BASE, getSignalUrl, apiFetch } from '@/lib/api';
 import { PUBLIC_STREAM_URL, USE_ICECAST } from '@/lib/streamConfig';
 import { getOrCreatePeerId } from '@/lib/peerId';

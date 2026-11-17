@@ -9,7 +9,7 @@ This checklist tracks **missing infrastructure and unverified requirements**. Ad
 - [x] Add `https://virgo-boys-radio.vercel.app` to the Fly `CORS_ALLOWED_ORIGINS` secret, preserving the original production site origins.
 - [ ] Verify the live API's `/health`, `/public/status`, events and artists responses from the deployed Virgo website and in mobile Safari; CORS configuration alone does not prove reachability.
 - [ ] Verify authenticated admin sign-in on Safari with the API on a separate fly.dev origin. Third-party cookie blocking may require a same-site reverse proxy or an API subdomain owned by the station.
-- [ ] Decide whether to migrate the legacy Fly service name, database and `@wstprtradio` internal package identifiers. These are not visible station branding and are intentionally left untouched to avoid breaking the running backend.
+- [ ] Decide whether to migrate the legacy Fly service name, database and `@virgo-boys-radio` internal package identifiers. These are not visible station branding and are intentionally left untouched to avoid breaking the running backend.
 - [ ] Configure the production public HTTPS Icecast stream; `NEXT_PUBLIC_API_BASE_URL` is **not** an audio streaming URL.
 - [ ] Do not migrate Fly's `SESSION_SECRET`, `ADMIN_USERS`, or DJ ingest passwords to Vercel. Only add server-side secrets there if a future trusted Vercel server feature specifically needs its own credential.
 

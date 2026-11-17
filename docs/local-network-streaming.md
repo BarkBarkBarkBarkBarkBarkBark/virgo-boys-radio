@@ -1,9 +1,9 @@
 ---
 layout: default
-title: Local Network Streaming Guide — wstprtradio
+title: Local Network Streaming Guide — virgoboysradio
 ---
 
-# Local Network Streaming Guide — wstprtradio
+# Local Network Streaming Guide — virgoboysradio
 
 This is the shortest path to the thing that matters most right now: **send a stream from one device and hear it on another device on your local network**.
 
@@ -106,7 +106,7 @@ Suggested early-stage values:
 - `SQLITE_DB_PATH=./data/wstprtradio.db`
 - `STREAM_PUBLIC_URL=http://YOUR_STREAM_HOST:8000/radio.mp3`
 - `STREAM_METADATA_PROVIDER=static`
-- `STATIC_NOW_PLAYING_TITLE=West Port Radio`
+- `STATIC_NOW_PLAYING_TITLE=Virgo Boys Radio`
 - `STATIC_NOW_PLAYING_ARTIST=Icecast Stream`
 
 Generate secrets locally:

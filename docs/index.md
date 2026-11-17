@@ -1,13 +1,13 @@
 ---
 layout: default
-title: West Port Radio — Documentation
+title: Virgo Boys Radio — Documentation
 ---
 
-# West Port Radio Docs
+# Virgo Boys Radio Docs
 
 > 88.9 FM · Kansas City, Missouri · Pirate Radio
 
-This site documents the technical stack, deployment process, and operational guides for **West Port Radio** — a live WebRTC radio station with an always-on jukebox fallback.
+This site documents the technical stack, deployment process, and operational guides for **Virgo Boys Radio** — a live WebRTC radio station with an always-on jukebox fallback.
 
 ---
 

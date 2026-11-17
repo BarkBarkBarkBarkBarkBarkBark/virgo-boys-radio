@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_NAME="${FLY_APP_NAME:-wst-prt-radio}"
-STATION_NAME="${STATION_NAME:-West Port Radio}"
+STATION_NAME="${STATION_NAME:-Virgo Boys Radio}"
 CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-https://wst-prt-radio.vercel.app}"
 SQLITE_DB_PATH="${SQLITE_DB_PATH:-/data/wstprtradio.db}"
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# West Port Radio — bulk-upload audio files to the running API.
+# Virgo Boys Radio — bulk-upload audio files to the running API.
 #
 # Files are streamed to POST /admin/songs/upload, which writes them to the
 # server's SONGS_DIR (the persistent /data/songs volume in production). This is

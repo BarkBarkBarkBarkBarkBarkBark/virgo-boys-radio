@@ -85,12 +85,12 @@ export function VinylRecord({
             </defs>
             <text className="fill-paper/90 text-[8px] font-bold tracking-[2px]">
               <textPath href="#outerLabelPath" startOffset="50%" textAnchor="middle">
-                WEST PORT RADIO • WEST PORT RADIO
+                VIRGO BOYS RADIO • VIRGO BOYS RADIO
               </textPath>
             </text>
             <text className="fill-paper/70 text-[6.5px] font-semibold tracking-[1.5px]">
               <textPath href="#innerLabelPath" startOffset="50%" textAnchor="middle">
-                WEST PORT RADIO • WEST PORT RADIO
+                VIRGO BOYS RADIO • VIRGO BOYS RADIO
               </textPath>
             </text>
           </svg>

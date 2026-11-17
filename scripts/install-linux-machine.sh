@@ -129,7 +129,7 @@ PORT=3001
 APP_ENV=development
 CORS_ALLOWED_ORIGINS=http://$lan_ip:3000,http://localhost:3000
 SQLITE_DB_PATH=./data/wstprtradio.db
-STATION_NAME=West Port Radio
+STATION_NAME=Virgo Boys Radio
 EOF
 }
 

@@ -1,4 +1,4 @@
-# West Port Radio — claims audit
+# Virgo Boys Radio — claims audit
 #
 # Every public claim made by the repo's README, manifest, openapi spec, and docs,
 # checked against the actual source. Verdict legend:
@@ -11,7 +11,7 @@
 # This file doubles as a regression checklist: re-verify each entry after edits.
 
 spec_version: "1.0"
-station: "West Port Radio"
+station: "Virgo Boys Radio"
 audited_at: "2026-05-01"
 
 claims:
@@ -300,7 +300,7 @@ claims:
     evidence:
       - wst-prt-radio/fly.toml (app=wst-prt-radio, region=iad, port=3001)
       - apps/api/fly.toml (app=wst-prt-radio, region=ams, port=8080, malformed `app = 'node …'` inside [env])
-      - infra/fly/fly.toml (app=wstprtradio-api, region=iad, port=3001, has http_checks)
+      - infra/fly/fly.toml (app=virgoboysradio-api, region=iad, port=3001, has http_checks)
     action: "Phase 2 keeps wst-prt-radio/fly.toml and deletes the other two; ports http_checks over from infra/fly/fly.toml."
 
   - id: fly-volume-mount

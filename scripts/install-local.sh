@@ -124,13 +124,13 @@ ICECAST_ADMIN_PASSWORD=$(random_text_secret)
 ICECAST_RELAY_PASSWORD=$(random_text_secret)
 ICECAST_HOSTNAME=$lan_ip
 ICECAST_PORT=8000
-ICECAST_ADMIN_EMAIL=local@wstprtradio.test
-ICECAST_LOCATION=West Port Radio Local Dev
+ICECAST_ADMIN_EMAIL=local@virgo-boys-radio.test
+ICECAST_LOCATION=Virgo Boys Radio Local Dev
 JUKEBOX_ICECAST_HOST=icecast
 JUKEBOX_ICECAST_PORT=8000
 JUKEBOX_MOUNT=/radio.mp3
-JUKEBOX_NAME=West Port Radio Jukebox
-JUKEBOX_DESCRIPTION=West Port Radio local MP3 jukebox
+JUKEBOX_NAME=Virgo Boys Radio Jukebox
+JUKEBOX_DESCRIPTION=Virgo Boys Radio local MP3 jukebox
 JUKEBOX_GENRE=Eclectic
 JUKEBOX_MEDIA_DIR=/music
 JUKEBOX_PLAYLIST_MODE=randomize
@@ -144,7 +144,7 @@ PORT=3001
 APP_ENV=development
 CORS_ALLOWED_ORIGINS=http://$lan_ip:3000,http://localhost:3000
 SQLITE_DB_PATH=./data/wstprtradio.db
-STATION_NAME=West Port Radio
+STATION_NAME=Virgo Boys Radio
 EOF
 }
 

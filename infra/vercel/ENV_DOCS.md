@@ -1,6 +1,6 @@
 # Vercel Environment Variables
 
-Set these in the Vercel project settings for the `wstprtradio-web` project.
+Set these in the Vercel project settings for the `virgoboysradio-web` project.
 
 | Variable | Required | Description |
 |---|---|---|

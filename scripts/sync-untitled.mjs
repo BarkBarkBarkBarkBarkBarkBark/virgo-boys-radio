@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Untitled.stream -> West Port Radio sync utility.
+ * Untitled.stream -> Virgo Boys Radio sync utility.
  *
  * This script does not execute shell commands or third-party code.
  * It fetches project pages, resolves audio URLs, downloads tracks locally,
@@ -66,7 +66,7 @@ function sleep(ms) {
 
 async function fetchText(url) {
   const headers = {
-    'user-agent': 'wstprtradio-sync/1.0',
+    'user-agent': 'virgoboysradio-sync/1.0',
   };
   if (UNTITLED_COOKIE) headers.cookie = UNTITLED_COOKIE;
 
@@ -164,7 +164,7 @@ async function resolveSignedAudioUrl(audioFallbackUrl) {
 
   const res = await fetch(url, {
     headers: {
-      'user-agent': 'wstprtradio-sync/1.0',
+      'user-agent': 'virgoboysradio-sync/1.0',
       ...(UNTITLED_COOKIE ? { cookie: UNTITLED_COOKIE } : {}),
     },
   });
@@ -182,7 +182,7 @@ async function resolveSignedAudioUrl(audioFallbackUrl) {
 }
 
 async function downloadToFile(url, outputFilePath) {
-  const res = await fetch(url, { headers: { 'user-agent': 'wstprtradio-sync/1.0' } });
+  const res = await fetch(url, { headers: { 'user-agent': 'virgoboysradio-sync/1.0' } });
   if (!res.ok || !res.body) {
     throw new Error(`Audio download failed (${res.status})`);
   }

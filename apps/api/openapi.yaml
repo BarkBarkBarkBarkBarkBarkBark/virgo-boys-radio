@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: West Port Radio API
+  title: Virgo Boys Radio API
   version: 1.0.0
   description: |
     Fastify control plane: always-on jukebox streaming, station status, WebRTC
@@ -40,7 +40,7 @@ paths:
       summary: Station status (listeners, broadcaster slot, optional always-on sync)
       responses:
         '200':
-          description: JSON StationStatus from `@wstprtradio/shared`
+          description: JSON StationStatus from `@virgo-boys-radio/shared`
 
   /public/autoplay:
     get:

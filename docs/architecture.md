@@ -5,7 +5,7 @@ title: Stream Architecture
 
 # Architecture
 
-West Port Radio is a small-scale internet radio station with two listening modes:
+Virgo Boys Radio is a small-scale internet radio station with two listening modes:
 
 1. **Always-on jukebox** — when nobody is broadcasting live, every browser plays the same MP3 from the repo's `songs/` directory, seeked to the same offset so all listeners hear the same moment.
 2. **Live WebRTC broadcast** — exactly one user can "jack" the station from their browser at `/stream`, allow the mic, and become the broadcaster. The Fastify API relays SDP/ICE over a WebSocket; audio itself flows browser-to-browser.
@@ -167,7 +167,7 @@ Required env / secrets in production:
 - `APP_ENV=production`
 - `PORT=3001`
 - `SQLITE_DB_PATH=/data/wstprtradio.db`
-- `STATION_NAME=West Port Radio`
+- `STATION_NAME=Virgo Boys Radio`
 - `CORS_ALLOWED_ORIGINS=https://your-vercel-app.vercel.app[,https://wstprtradio.com]`
 - `SESSION_SECRET=<random 32-byte hex>` — required in prod (Phase 3)
 - `ADMIN_USERS=marco:<password>,mun:<password>` — required in prod (Phase 3)

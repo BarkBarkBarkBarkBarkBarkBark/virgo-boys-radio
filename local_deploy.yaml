@@ -5,7 +5,7 @@
 # 1. docker compose -f local_deploy.yaml run --rm bootstrap
 # 2. docker compose -f local_deploy.yaml up -d icecast jukebox api web
 
-name: wstprtradio-local
+name: virgo-boys-radio-local
 
 services:
   bootstrap:
@@ -26,7 +26,7 @@ services:
         corepack enable
         corepack prepare pnpm@10.33.2 --activate
         pnpm install --frozen-lockfile
-        pnpm --filter @wstprtradio/shared build
+        pnpm --filter @virgo-boys-radio/shared build
     profiles:
       - bootstrap
 
@@ -83,7 +83,7 @@ services:
         corepack enable
         corepack prepare pnpm@10.33.2 --activate
         mkdir -p apps/api/data
-        pnpm --filter @wstprtradio/api dev
+        pnpm --filter @virgo-boys-radio/api dev
     ports:
       - "3001:3001"
     depends_on:
@@ -115,7 +115,7 @@ services:
       - |
         corepack enable
         corepack prepare pnpm@10.33.2 --activate
-        pnpm --filter @wstprtradio/web dev
+        pnpm --filter @virgo-boys-radio/web dev
     ports:
       - "3000:3000"
     depends_on:

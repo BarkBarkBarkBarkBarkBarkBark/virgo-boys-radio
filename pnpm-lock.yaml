@@ -53,7 +53,7 @@ importers:
       '@fastify/websocket':
         specifier: ^11.2.0
         version: 11.2.0
-      '@wstprtradio/shared':
+      '@virgo-boys-radio/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       argon2:
@@ -93,7 +93,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@wstprtradio/shared':
+      '@virgo-boys-radio/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       next:

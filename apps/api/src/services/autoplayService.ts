@@ -1,7 +1,7 @@
 import { createReadStream, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AlwaysOnState } from '@wstprtradio/shared';
+import type { AlwaysOnState } from '@virgo-boys-radio/shared';
 import { env } from '../lib/env.js';
 
 export interface AlwaysOnTrack {
