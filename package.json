@@ -1,10 +1,10 @@
 {
-  "name": "wstprtradio",
+  "name": "virgoboysradio",
   "private": true,
   "version": "0.0.1",
   "scripts": {
     "build": "pnpm -r run build",
-    "dev": "pnpm --filter=@wstprtradio/shared build && pnpm -r --parallel run dev",
+    "dev": "pnpm --filter=@virgo-boys-radio/shared build && pnpm -r --parallel run dev",
     "convert:songs": "node ./scripts/convert-songs-to-mp3.mjs",
     "sync:untitled": "node ./scripts/sync-untitled.mjs",
     "upload:songs": "node ./scripts/upload-songs.mjs",
@@ -13,7 +13,7 @@
     "local:down": "docker compose -f local_deploy.yaml down",
     "lint": "pnpm -r run lint",
     "typecheck": "pnpm -r run typecheck",
-    "test": "pnpm --filter @wstprtradio/api test",
+    "test": "pnpm --filter @virgo-boys-radio/api test",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@wstprtradio/shared', '@wstprtradio/ui'],
+  transpilePackages: ['@virgo-boys-radio/shared', '@virgo-boys-radio/ui'],
   // The workspace uses a custom root ESLint config (@typescript-eslint) rather
   // than eslint-config-next, so the Next.js lint rules (e.g. @next/next/*) are
   // not loaded during `next build`. Linting is run separately via `pnpm lint`;
