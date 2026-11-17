@@ -48,10 +48,15 @@ jobs:
           done
           if [[ "$healthy" != 1 ]]; then
             docker logs virgo-icecast-test
-            docker exec virgo-icecast-test sh -c 'cat /tmp/icecast-logs/error.log || true; ps -ef || true' || true
+            docker exec virgo-icecast-test sh -c 'cat /tmp/icecast-logs/error.log || true; ps -ef || true; ls -l /tmp/virgo-icecast.xml; command -v icecast' || true
             exit 1
           fi
-          code="$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:13001/radio.mp3)"
+          code=""
+          for i in $(seq 1 15); do
+            code="$(curl -sS --max-time 2 -o /dev/null -w '%{http_code}' http://127.0.0.1:13001/radio.mp3 || true)"
+            if [[ "$code" == 404 ]]; then break; fi
+            sleep 1
+          done
           # With no broadcaster connected, Icecast should return its no-source
           # response (404); a 502 means the proxy cannot reach Icecast.
           if [[ "$code" != 404 ]]; then
