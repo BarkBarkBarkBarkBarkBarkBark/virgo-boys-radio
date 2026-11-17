@@ -20,7 +20,7 @@ async function getArtists(): Promise<Artist[]> {
   }
 }
 
-export const metadata = { title: 'Artists · West Port Radio' };
+export const metadata = { title: 'Artists · Virgo Boys Radio' };
 
 export default async function ArtistsPage() {
   const artists = await getArtists();
@@ -29,11 +29,11 @@ export default async function ArtistsPage() {
     <PublicShell>
       <div className="space-y-10">
         <div className="space-y-2">
-          <p className="text-[0.6rem] uppercase tracking-[0.45em] text-muted font-mono">West Port Radio</p>
+          <p className="text-[0.6rem] uppercase tracking-[0.45em] text-muted font-mono">Virgo Boys Radio</p>
           <h1 className="text-4xl font-bold uppercase tracking-[0.15em] text-ink">Artists</h1>
           <p className="text-sm text-muted max-w-2xl">
-            West Port Radio is built on the music of Kansas City and beyond. We feature independent artists,
-            local bands, and friends of the station. Want your music on the air? Reach out.
+            Virgo Boys Radio showcases independent producers, DJs, and underground artists.
+            Tune in for original music, live sets, and sounds you won&apos;t hear on the usual dial.
           </p>
         </div>
 
@@ -88,15 +88,15 @@ export default async function ArtistsPage() {
         <div className="border border-ink/12 bg-white/75 p-8 space-y-4">
           <h2 className="text-xl font-bold uppercase tracking-[0.12em] text-ink">Submit Your Music</h2>
           <p className="text-sm text-muted leading-7 max-w-2xl">
-            We&apos;re always looking for new music. If you&apos;re a local artist or a touring act coming through Kansas City,
-            we want to hear from you. Send us your demos, EPs, or just say hello.
+            Producer, DJ, or independent artist? Share your demos, original tracks, or mixes with our team.
+            We&apos;re building a home for music worth hearing.
           </p>
           <div className="grid sm:grid-cols-2 gap-4 pt-2">
             {[
               { label: 'Format', value: 'MP3, WAV, FLAC' },
               { label: 'Genre', value: 'Any — we\'re freeform' },
-              { label: 'Response time', value: '1–2 weeks' },
-              { label: 'Airplay', value: 'Always free' },
+              { label: 'Response', value: 'As programming allows' },
+              { label: 'Airplay', value: 'Curated selection' },
             ].map(({ label, value }) => (
               <div key={label} className="border border-ink/10 p-4">
                 <p className="text-[0.6rem] uppercase tracking-[0.35em] text-muted font-mono">{label}</p>

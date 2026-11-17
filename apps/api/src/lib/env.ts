@@ -10,7 +10,7 @@ const EnvSchema = z.object({
     .optional()
     .transform((v) => v === 'true' || v === '1'),
   SQLITE_DB_PATH: z.string().min(1),
-  STATION_NAME: z.string().min(1).default('West Port Radio'),
+  STATION_NAME: z.string().min(1).default('Virgo Boys Radio'),
   SESSION_SECRET: z.string().optional(),
   ADMIN_USERS: z.string().optional(),
   // Absolute path where uploaded audio files live. In production this should

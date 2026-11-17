@@ -27,7 +27,7 @@ export default function EventsPageClient() {
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <p className="text-[0.6rem] uppercase tracking-[0.45em] text-muted font-mono">West Port Radio</p>
+        <p className="text-[0.6rem] uppercase tracking-[0.45em] text-muted font-mono">Virgo Boys Radio</p>
         <h1 className="text-4xl font-bold uppercase tracking-[0.15em] text-ink">Events</h1>
         <p className="text-sm text-muted">Live sessions, local shows, and happenings from the station.</p>
       </div>
