@@ -14,6 +14,7 @@ if [ "${ICECAST_ENABLED:-false}" = "true" ]; then
   : "${ICECAST_RELAY_PASSWORD:?Set ICECAST_RELAY_PASSWORD in Fly secrets first}"
   : "${ICECAST_HOSTNAME:=wst-prt-radio.fly.dev}"
   : "${ICECAST_MAX_LISTENERS:=100}"
+  export ICECAST_HOSTNAME ICECAST_MAX_LISTENERS
 
   # These values are inserted in XML: require long, XML-safe secrets.
   for key in ICECAST_SOURCE_PASSWORD ICECAST_ADMIN_PASSWORD ICECAST_RELAY_PASSWORD; do
