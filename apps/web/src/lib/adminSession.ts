@@ -38,7 +38,7 @@ export async function verifyAdminSession(token: string | undefined): Promise<boo
   const signature = hexToBytes(parts[3] ?? '');
   if (!signature) return false;
   try {
-    return await crypto.subtle.verify('HMAC', await key(), signature,
+    return await crypto.subtle.verify('HMAC', await key(), signature.buffer as ArrayBuffer,
       new TextEncoder().encode(parts.slice(0, 3).join('.')));
   } catch {
     return false;
