@@ -279,7 +279,7 @@ export function PrivateDjBooth() {
       workletSilence.gain.value = 0;
       worklet.connect(workletSilence).connect(context.destination);
 
-      const requestedFormat: UplinkFormat = preferredUplinkFormat(uploadPreference, canRecordOpus());
+      let requestedFormat: UplinkFormat = preferredUplinkFormat(uploadPreference, canRecordOpus());
       // A MediaStreamDestination provides a silent, stereo source for the
       // browser's native WebM/Opus encoder. It never plays into local speakers.
       const opusDestination = requestedFormat === 'webm_opus' ? context.createMediaStreamDestination() : null;
@@ -394,10 +394,16 @@ export function PrivateDjBooth() {
                     reportAudioHealth(socket, buffered);
                   },
                   onWarning: (warning) => setMessage(warning),
-                  onFailure: (failure) => setMessage(failure),
+                  onFailure: (failure) => {
+                    // A browser that advertises Opus but cannot actually
+                    // encode it should recover with the proven PCM path.
+                    if (failure.startsWith('Browser Opus encoder failed')) requestedFormat = 'pcm_s16le';
+                    setMessage(failure);
+                  },
                 });
               } catch {
-                setMessage('Cannot start the browser Opus encoder. Select PCM in Connection details to retry.');
+                requestedFormat = 'pcm_s16le';
+                setMessage('Browser Opus encoder unavailable. Falling back to PCM on reconnect.');
                 socket.close(4009, 'opus_recorder_failed');
                 return;
               }
