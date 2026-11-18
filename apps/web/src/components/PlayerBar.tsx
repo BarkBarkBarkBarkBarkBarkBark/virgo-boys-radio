@@ -40,11 +40,13 @@ export function PlayerBar() {
   const isLive    = transport === 'icecast' ? connected : !!status?.broadcasterPresent;
   const listeners = status?.listenerCount ?? 0;
 
-  const trackLine = message
-    .replace(/^Now playing:\s*/i, '')
-    .replace(/^Always-on:\s*/i, '')
-    .replace(/^Ready:\s*/i, '')
-    .replace(/\. Tap play if autoplay is blocked\.?$/i, '');
+  const playbackText = transport === 'webrtc' && enabled && message.startsWith('Now playing:')
+    ? message.replace(/^Now playing:\\s*/i, '')
+    : !enabled ? 'Ready to listen'
+    : connected ? 'Listening'
+    : /could not start/i.test(message) ? 'Playback unavailable'
+    : /interrupted|retry|failed/i.test(message) ? 'Reconnecting…'
+    : 'Connecting…';
 
   // Sound-reactive glow on the top border
   const glowAlpha  = amplitude > 0.04 ? (0.3 + amplitude * 0.5).toFixed(2) : '0';
@@ -79,10 +81,10 @@ export function PlayerBar() {
         />
         <div className="min-w-0">
           <p className="text-[9px] font-mono uppercase tracking-[0.22em] text-stone-400 leading-none mb-0.5">
-            {isLive ? 'live' : 'on air'}
+            Virgo Boys Radio
           </p>
-          <p className="text-[11px] text-stone-600 font-mono leading-tight whitespace-normal break-words">
-            {trackLine}
+          <p className="truncate text-[11px] text-stone-600 font-mono leading-tight">
+            {playbackText}
           </p>
         </div>
       </div>
