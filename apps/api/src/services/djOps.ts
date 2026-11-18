@@ -23,6 +23,8 @@ type LiveBroadcast = {
   lastHeartbeatMs: number;
   encoderPid: number | null;
   encoderPendingBytes: number;
+  browserBufferedBytes: number;
+  browserDroppedFrames: number;
   rateKbps: number;
   rateWindowStart: number;
   rateWindowBytes: number;
@@ -131,7 +133,7 @@ export function startDjMetrics(label: string, pid: number | null) {
   const session: LiveBroadcast = {
     id: randomUUID(), label, startedAt: new Date(time).toISOString(), startedMs: time,
     bytesReceived: 0, framesReceived: 0, lastFrameMs: time, lastHeartbeatMs: time,
-    encoderPid: pid, encoderPendingBytes: 0, rateKbps: 0,
+    encoderPid: pid, encoderPendingBytes: 0, browserBufferedBytes: 0, browserDroppedFrames: 0, rateKbps: 0,
     rateWindowStart: time, rateWindowBytes: 0,
   };
   ensureTables();
@@ -160,6 +162,16 @@ export function noteDjFrame(sessionId: string, bytes: number, pendingBytes: numb
     getDb().prepare(`UPDATE dj_broadcast_sessions
       SET duration_seconds = ?, bytes_received = ? WHERE id = ?`)
       .run(Math.round((now - live.startedMs) / 1000), live.bytesReceived, live.id);
+  }
+}
+
+export function noteDjClientDiagnostics(sessionId: string, droppedFrames: number, bufferedBytes: number) {
+  if (live?.id !== sessionId) return;
+  if (Number.isSafeInteger(droppedFrames) && droppedFrames >= 0 && droppedFrames < 1_000_000_000) {
+    live.browserDroppedFrames = Math.max(live.browserDroppedFrames, droppedFrames);
+  }
+  if (Number.isSafeInteger(bufferedBytes) && bufferedBytes >= 0 && bufferedBytes < 16 * 1024 * 1024) {
+    live.browserBufferedBytes = bufferedBytes;
   }
 }
 
@@ -199,6 +211,8 @@ export function getDjMetrics() {
       lastHeartbeatAgeMs: now - live.lastHeartbeatMs,
       ffmpegPid: live.encoderPid,
       encoderPendingBytes: live.encoderPendingBytes,
+      browserBufferedBytes: live.browserBufferedBytes,
+      browserDroppedFrames: live.browserDroppedFrames,
     } : null,
     recent,
     process: { uptimeSeconds: Math.round(process.uptime()), rssMB: Math.round(mem.rss / 1_048_576) },
