@@ -43,10 +43,10 @@ CREATE TABLE IF NOT EXISTS dj_broadcast_sessions (
   id TEXT PRIMARY KEY,
   label TEXT NOT NULL,
   started_at TEXT NOT NULL,
-  ended_at TEXT NOT NULL,
-  duration_seconds INTEGER NOT NULL,
-  bytes_received INTEGER NOT NULL,
-  reason TEXT NOT NULL,
+  ended_at TEXT,
+  duration_seconds INTEGER NOT NULL DEFAULT 0,
+  bytes_received INTEGER NOT NULL DEFAULT 0,
+  reason TEXT NOT NULL DEFAULT 'active',
   close_code INTEGER
 );
 `;
@@ -55,6 +55,13 @@ let initialized = false;
 function ensureTables(): void {
   if (initialized) return;
   getDb().exec(TABLES);
+  // A Fly restart/crash bypasses WebSocket close handlers. Preserve those sessions
+  // instead of losing the evidence of the connection drop.
+  const resumedAt = new Date().toISOString();
+  getDb().prepare(`UPDATE dj_broadcast_sessions
+    SET ended_at = ?, reason = 'server_restarted_or_crashed',
+        duration_seconds = MAX(0, CAST((julianday(?) - julianday(started_at)) * 86400 AS INTEGER))
+    WHERE ended_at IS NULL`).run(resumedAt, resumedAt);
   initialized = true;
 }
 
@@ -127,6 +134,11 @@ export function startDjMetrics(label: string, pid: number | null) {
     encoderPid: pid, encoderPendingBytes: 0, rateKbps: 0,
     rateWindowStart: time, rateWindowBytes: 0,
   };
+  ensureTables();
+  getDb().prepare(`INSERT INTO dj_broadcast_sessions
+    (id, label, started_at, ended_at, duration_seconds, bytes_received, reason, close_code)
+    VALUES (?, ?, ?, NULL, 0, 0, 'active', NULL)`)
+    .run(session.id, session.label, session.startedAt);
   live = session;
   return session.id;
 }
@@ -144,6 +156,10 @@ export function noteDjFrame(sessionId: string, bytes: number, pendingBytes: numb
     live.rateKbps = Math.round(live.rateWindowBytes * 8 / elapsed);
     live.rateWindowBytes = 0;
     live.rateWindowStart = now;
+    // A five-second checkpoint survives hard VM termination. No raw audio is saved.
+    getDb().prepare(`UPDATE dj_broadcast_sessions
+      SET duration_seconds = ?, bytes_received = ? WHERE id = ?`)
+      .run(Math.round((now - live.startedMs) / 1000), live.bytesReceived, live.id);
   }
 }
 
@@ -158,11 +174,10 @@ export function endDjMetrics(sessionId: string, reason: string, closeCode?: numb
   live = null;
   const endedAt = new Date().toISOString();
   const durationSeconds = Math.max(0, Math.round((Date.now() - session.startedMs) / 1000));
-  getDb().prepare(`INSERT INTO dj_broadcast_sessions
-    (id, label, started_at, ended_at, duration_seconds, bytes_received, reason, close_code)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(session.id, session.label, session.startedAt, endedAt, durationSeconds,
-      session.bytesReceived, reason.slice(0, 160), closeCode ?? null);
+  getDb().prepare(`UPDATE dj_broadcast_sessions
+    SET ended_at = ?, duration_seconds = ?, bytes_received = ?, reason = ?, close_code = ?
+    WHERE id = ?`)
+    .run(endedAt, durationSeconds, session.bytesReceived, reason.slice(0, 160), closeCode ?? null, session.id);
 }
 
 export function getDjMetrics() {
@@ -171,7 +186,7 @@ export function getDjMetrics() {
   const recent = getDb().prepare(`SELECT id, label, started_at AS startedAt,
     ended_at AS endedAt, duration_seconds AS durationSeconds,
     bytes_received AS bytesReceived, reason, close_code AS closeCode
-    FROM dj_broadcast_sessions ORDER BY ended_at DESC LIMIT 25`).all() as RecentSession[];
+    FROM dj_broadcast_sessions WHERE ended_at IS NOT NULL ORDER BY ended_at DESC LIMIT 25`).all() as RecentSession[];
   const mem = process.memoryUsage();
   return {
     generatedAt: new Date(now).toISOString(),
