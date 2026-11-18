@@ -99,7 +99,7 @@ export function revokeDjInvite(id: string): boolean {
   return result.changes > 0;
 }
 
-export function verifyDjCredential(message: { token?: string; code?: string }):
+export function verifyDjCredential(message: { token?: string | undefined; code?: string | undefined }):
   { id: string; label: string } | null {
   ensureTables();
   const token = message.token;
