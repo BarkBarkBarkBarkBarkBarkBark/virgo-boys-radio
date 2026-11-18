@@ -8,6 +8,14 @@
   }
 }
 
+:root {
+  --player-bar-height: calc(72px + env(safe-area-inset-bottom, 0px));
+}
+
+.home-stage {
+  min-height: calc(100dvh - var(--player-bar-height));
+}
+
 /* ─── Paper grain texture overlay ───────────────────────────────────────── */
 body::after {
   content: '';
