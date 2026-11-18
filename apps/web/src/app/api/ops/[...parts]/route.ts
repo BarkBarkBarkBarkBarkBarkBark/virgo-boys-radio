@@ -3,6 +3,7 @@ import { ADMIN_COOKIE, verifyAdminSession } from '@/lib/adminSession';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 45; // FFmpeg synthetic analysis is deliberately off-air and bounded.
 
 type Context = { params: Promise<{ parts?: string[] }> };
 
@@ -21,7 +22,7 @@ async function proxy(request: NextRequest, context: Context, method: 'GET' | 'PO
   const suffix = path === 'connectivity' ? request.nextUrl.search : '';
   const permitted =
     (method === 'GET' && (path === 'metrics' || path === 'invites' || path === 'connectivity')) ||
-    (method === 'POST' && path === 'invites') ||
+    (method === 'POST' && (path === 'invites' || path === 'audio-self-test')) ||
     (method === 'POST' && /^invites\/[a-f0-9-]{36}\/revoke$/i.test(path));
   if (!permitted) return NextResponse.json({ error: 'Unknown operation' }, { status: 404 });
 
@@ -40,7 +41,7 @@ async function proxy(request: NextRequest, context: Context, method: 'GET' | 'PO
       headers: { 'x-station-ops-key': key, ...(body ? { 'Content-Type': 'application/json' } : {}) },
       ...(body ? { body } : {}),
       cache: 'no-store',
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(path === 'audio-self-test' ? 42000 : 6000),
     });
     const response = await upstream.text();
     return new NextResponse(response, {
@@ -48,7 +49,7 @@ async function proxy(request: NextRequest, context: Context, method: 'GET' | 'PO
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' },
     });
   } catch {
-    return NextResponse.json({ error: 'Fly metrics API is unreachable' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ error: 'Fly admin API timed out or is unreachable' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
   }
 }
 

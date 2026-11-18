@@ -3,6 +3,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { createDjInvite, getDjMetrics, listDjInvites, revokeDjInvite } from '../../services/djOps.js';
 import { getConnectivityClients, getConnectivityEvents, getStreamAccessHistory, getIcecastClientSnapshot, recordConnectivity, type ConnectivityInput } from '../../services/stationConnectivity.js';
+import { runAudioSelfTest, AudioTestBusyError } from '../../services/audioSelfTest.js';
 
 const Login = z.object({ password: z.string().min(1).max(150) });
 const Invite = z.object({ label: z.string().max(70).default('Guest DJ'), hours: z.number().int().min(1).max(168).default(24) });
@@ -88,6 +89,34 @@ const opsRoute: FastifyPluginAsync = async (fastify) => {
       return reply.code(400).send({ error: 'Unsupported telemetry event' });
     }
     return reply.code(204).send();
+  });
+
+  fastify.post('/ops/audio-self-test', {
+    preHandler: requireOps,
+    config: { rateLimit: { max: 2, timeWindow: '5 minutes' } },
+  }, async (_request, reply) => {
+    reply.header('Cache-Control', 'private, no-store');
+    // A single small shared-CPU Fly machine hosts the production radio.
+    // This diagnostic is intentionally refused during any real broadcast:
+    // running multiple FFmpeg processes while on air could cause artifacts.
+    const origin = await readIcecastStatus();
+    if (!origin.reachable) {
+      return reply.code(503).send({ error: 'Icecast status is unavailable; cannot confirm that the station is off air.' });
+    }
+    if (getDjMetrics().live || origin.sourceConnected) {
+      return reply.code(409).send({
+        error: 'Finish the live broadcast before running audio diagnostics. The test never interrupts listeners.',
+      });
+    }
+    try {
+      return reply.send(await runAudioSelfTest());
+    } catch (cause) {
+      if (cause instanceof AudioTestBusyError) {
+        return reply.code(409).send({ error: cause.message });
+      }
+      fastify.log.warn({ err: cause }, 'Private audio self-test failed');
+      return reply.code(503).send({ error: 'Audio self-test failed on Fly. See the server logs or retry off air.' });
+    }
   });
 
   fastify.get('/ops/invites', { preHandler: requireOps }, async (_request, reply) => {

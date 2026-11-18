@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ConnectivityLab } from '@/components/ConnectivityLab';
+import { AudioSelfTestPanel } from '@/components/AudioSelfTestPanel';
 
 type Live = {
   id: string; label: string; startedAt: string; uptimeSeconds: number; bytesReceived: number;
@@ -177,6 +178,7 @@ export function OperationsDashboard() {
       </div>
 
       <ConnectivityLab />
+      <AudioSelfTestPanel />
 
       <div className="border border-stone-300 bg-white/85 p-5 space-y-5">
         <div><h2 className="text-xl font-bold">DJ invitations</h2>
