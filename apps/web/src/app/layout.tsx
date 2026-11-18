@@ -16,8 +16,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      {/* pb-[72px] reserves space so content never hides behind the fixed PlayerBar */}
-      <body className="antialiased pb-[72px]">
+      {/* Reserve the player bar and the device's bottom safe area. */}
+      <body className="antialiased" style={{ paddingBottom: 'var(--player-bar-height)' }}>
         <AudioProvider>
           {children}
           <PlayerBar />
