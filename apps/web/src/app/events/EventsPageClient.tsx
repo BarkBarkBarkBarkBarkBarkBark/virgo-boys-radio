@@ -29,15 +29,12 @@ export default function EventsPageClient() {
       <div className="space-y-2">
         <p className="text-[0.6rem] uppercase tracking-[0.45em] text-muted font-mono">Virgo Boys Radio</p>
         <h1 className="text-4xl font-bold uppercase tracking-[0.15em] text-ink">Events</h1>
-        <p className="text-sm text-muted">Live sessions, local shows, and happenings from the station.</p>
       </div>
 
       {loading ? (
         <p className="text-sm text-muted">Loading events…</p>
       ) : events.length === 0 ? (
-        <div className="border border-ink/10 p-8 text-center">
-          <p className="text-sm text-muted">No upcoming events right now. Check back soon.</p>
-        </div>
+        <p className="text-sm text-muted">Nothing announced yet.</p>
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {events.map((ev) => (
