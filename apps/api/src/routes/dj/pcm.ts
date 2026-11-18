@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
-import { endDjMetrics, noteDjFrame, noteDjHeartbeat, startDjMetrics, verifyDjCredential } from '../../services/djOps.js';
+import { endDjMetrics, noteDjClientDiagnostics, noteDjFrame, noteDjHeartbeat, startDjMetrics, verifyDjCredential } from '../../services/djOps.js';
 
 // Browser audio is 48 kHz, stereo, 16-bit PCM sent as binary WebSocket frames.
 // The server owns the Icecast source password; it is NEVER sent to the browser.
@@ -128,10 +128,14 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
 
       if (!isBinary) {
         try {
-          const packet = JSON.parse(data.toString()) as { type?: string; clientTime?: number };
+          const packet = JSON.parse(data.toString()) as { type?: string; clientTime?: number; droppedFrames?: number; bufferedBytes?: number };
           if (packet.type === 'heartbeat') {
             if (sessionId) noteDjHeartbeat(sessionId);
             send({ type: 'heartbeat', serverTime: Date.now(), clientTime: Number(packet.clientTime) || 0 });
+            return;
+          }
+          if (packet.type === 'client_diagnostics') {
+            if (sessionId) noteDjClientDiagnostics(sessionId, packet.droppedFrames ?? -1, packet.bufferedBytes ?? -1);
             return;
           }
         } catch { /* Malformed control frame. */ }

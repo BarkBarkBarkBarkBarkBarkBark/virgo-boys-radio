@@ -31,6 +31,7 @@ export function PrivateDjBooth() {
   const [publicStatus, setPublicStatus] = useState<'idle' | 'checking' | 'available' | 'unavailable'>('idle');
   const inviteRef = useRef('');
   const wsRef = useRef<WebSocket | null>(null);
+  const stateRef = useRef<BoothState>('idle');
   const streamRef = useRef<MediaStream | null>(null);
   const contextRef = useRef<AudioContext | null>(null);
   const oscillatorsRef = useRef<OscillatorNode[]>([]);
@@ -38,6 +39,7 @@ export function PrivateDjBooth() {
   const testTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return;
@@ -61,11 +63,13 @@ export function PrivateDjBooth() {
   const cleanup = useCallback(() => {
     const socket = wsRef.current;
     wsRef.current = null;
-    if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) socket.close();
+    if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) socket.close(1000, 'operator_or_page_stop');
     if (meterTimerRef.current) clearInterval(meterTimerRef.current);
     if (testTimerRef.current) clearTimeout(testTimerRef.current);
     if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
     if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    retryTimerRef.current = null;
     heartbeatRef.current = null;
     meterTimerRef.current = null;
     testTimerRef.current = null;
@@ -85,6 +89,7 @@ export function PrivateDjBooth() {
 
   const stop = () => {
     cleanup();
+    stateRef.current = 'idle';
     setState('idle');
     setPublicStatus('idle');
     setMessage('Off air. Audio capture has stopped.');
@@ -124,6 +129,7 @@ export function PrivateDjBooth() {
     setLatencyMs(null);
     setPendingBytes(null);
     setLastClose('');
+    stateRef.current = 'connecting';
     setState('connecting');
     setMessage('Opening audio source…');
 
@@ -251,59 +257,131 @@ export function PrivateDjBooth() {
       workletSilence.gain.value = 0;
       worklet.connect(workletSilence).connect(context.destination);
 
-      const socket = new WebSocket(API_BASE.replace(/^http/i, 'ws').replace(/\/$/, '') + '/dj/pcm');
-      wsRef.current = socket;
-      socket.binaryType = 'arraybuffer';
-      socket.onopen = () => {
-        socket.send(JSON.stringify({ type: 'auth', ...(hasInvite ? { token: inviteRef.current } : { code: entryCode }) }));
-        setMessage('Authenticating private DJ invitation…');
+      // The Web Audio graph stays connected while a WebSocket reconnects.
+      // Do not silently turn off the DJ's source after a brief network interruption.
+      const websocketUrl = API_BASE.replace(/^http/i, 'ws').replace(/\/$/, '') + '/dj/pcm';
+      const SOFT_BUFFER_BYTES = 384 * 1024; // ~2 seconds of stereo PCM
+      const RESUME_BUFFER_BYTES = 128 * 1024;
+      const MAX_CONGESTION_MS = 12_000;
+      const MAX_RECONNECTS = 5;
+      let retries = 0;
+      let attached = false;
+      let congestionStarted = 0;
+      let droppedFrames = 0;
+      let lastDiagnostic = 0;
+      let lastWarn = 0;
+
+      // Deliver a current diagnostic over the socket when possible. Messages
+      // are deliberately small, sent at most every five seconds.
+      const reportAudioHealth = (socket: WebSocket, bufferedBytes: number) => {
+        if (socket.readyState !== WebSocket.OPEN) return;
+        const now = Date.now();
+        if (now - lastDiagnostic < 5000) return;
+        lastDiagnostic = now;
+        socket.send(JSON.stringify({ type: 'client_diagnostics', droppedFrames, bufferedBytes }));
       };
-      socket.onmessage = (event) => {
-        let reply: { type: string; message?: string; bytesReceived?: number; pendingBytes?: number; clientTime?: number; serverTime?: number };
-        try { reply = JSON.parse(event.data as string) as typeof reply; } catch { return; }
-        if (reply.type === 'ready') {
-          worklet.port.onmessage = (frame) => {
-            if (socket.readyState !== WebSocket.OPEN) return;
-            if (socket.bufferedAmount > 512 * 1024) {
-              setMessage('Network uplink is falling behind. Transmission disconnected.');
-              socket.close();
-              return;
-            }
-            socket.send(frame.data as ArrayBuffer);
-          };
-          input.connect(worklet);
-          heartbeatRef.current = setInterval(() => {
-            if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'heartbeat', clientTime: Date.now() }));
-          }, 5000);
-          setState('sending');
-          setMessage('Audio is flowing to Fly. Keep this tab foregrounded; verify the listener feed on another device.');
-          checkTimerRef.current = setTimeout(() => void checkPublicStream(), 3000);
-        } else if (reply.type === 'stats') {
-          setSent(reply.bytesReceived ?? 0);
-          setPendingBytes(reply.pendingBytes ?? null);
-        } else if (reply.type === 'heartbeat' && reply.clientTime) {
-          setLatencyMs(Math.max(0, Date.now() - reply.clientTime));
-        } else if (reply.type === 'error') {
-          setMessage(reply.message ?? 'The station rejected this connection.');
-          setState('error');
-          cleanup();
+
+      worklet.port.onmessage = (frame) => {
+        const active = wsRef.current;
+        if (!active || active.readyState !== WebSocket.OPEN || stateRef.current !== 'sending') return;
+        const buffered = active.bufferedAmount;
+        if (buffered >= SOFT_BUFFER_BYTES) {
+          // Live audio must not accumulate multiple seconds of stale audio.
+          // Drop delayed frames temporarily instead of instantly ending the set.
+          droppedFrames += 1;
+          if (!congestionStarted) congestionStarted = Date.now();
+          if (Date.now() - lastWarn > 5000) {
+            setMessage('Connection is slow — recovering audio in real time.');
+            lastWarn = Date.now();
+          }
+          reportAudioHealth(active, buffered);
+          if (Date.now() - congestionStarted > MAX_CONGESTION_MS) {
+            active.close(4008, 'uplink_queue_stalled');
+          }
+          return;
         }
+        if (buffered < RESUME_BUFFER_BYTES) congestionStarted = 0;
+        active.send(frame.data as ArrayBuffer);
+        reportAudioHealth(active, buffered);
       };
-      socket.onerror = () => {
-        setMessage('WebSocket error: network, reverse proxy, or backend failure. Check the admin disconnect log.');
-        setState('error');
-        cleanup();
+
+      const openSocket = () => {
+        if (!contextRef.current) return;
+        const socket = new WebSocket(websocketUrl);
+        wsRef.current = socket;
+        socket.binaryType = 'arraybuffer';
+        socket.onopen = () => {
+          socket.send(JSON.stringify({ type: 'auth', ...(hasInvite ? { token: inviteRef.current } : { code: entryCode }) }));
+          setMessage(retries ? 'Reconnecting to the station…' : 'Connecting to the station…');
+        };
+        socket.onmessage = (event) => {
+          if (wsRef.current !== socket) return;
+          let reply: { type: string; message?: string; bytesReceived?: number; pendingBytes?: number; clientTime?: number; serverTime?: number };
+          try { reply = JSON.parse(event.data as string) as typeof reply; } catch { return; }
+          if (reply.type === 'ready') {
+            if (!attached) {
+              input.connect(worklet);
+              attached = true;
+            }
+            if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+            heartbeatRef.current = setInterval(() => {
+              if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'heartbeat', clientTime: Date.now() }));
+            }, 5000);
+            congestionStarted = 0;
+            retries = 0;
+            setState('sending');
+            stateRef.current = 'sending';
+            setMessage('Live · Connection healthy');
+            if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
+            checkTimerRef.current = setTimeout(() => void checkPublicStream(), 3000);
+          } else if (reply.type === 'stats') {
+            setSent(reply.bytesReceived ?? 0);
+            setPendingBytes(reply.pendingBytes ?? null);
+          } else if (reply.type === 'heartbeat' && reply.clientTime) {
+            setLatencyMs(Math.max(0, Date.now() - reply.clientTime));
+          } else if (reply.type === 'error') {
+            setLastClose(reply.message ?? 'Station rejected the uplink');
+            setMessage(reply.message ?? 'Station rejected the uplink');
+            setState('error');
+            stateRef.current = 'error';
+            cleanup();
+          }
+        };
+        socket.onerror = () => {
+          if (wsRef.current === socket) setMessage('Uplink interrupted. Checking connection…');
+          // A close event follows; preserving the audio graph lets us retry.
+        };
+        socket.onclose = (event) => {
+          if (wsRef.current !== socket) return;
+          wsRef.current = null;
+          if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+          heartbeatRef.current = null;
+          congestionStarted = 0;
+          const reason = 'WebSocket ' + event.code + (event.reason ? ' · ' + event.reason : '');
+          setLastClose(reason);
+          const retryable = [1001, 1005, 1006, 1011, 1012, 4008].includes(event.code);
+          if (retryable && retries < MAX_RECONNECTS && contextRef.current) {
+            const delay = Math.min(1000 * 2 ** retries, 12_000);
+            retries += 1;
+            setState('connecting');
+            stateRef.current = 'connecting';
+            setMessage('Connection lost. Reconnecting (' + retries + '/' + MAX_RECONNECTS + ')…');
+            retryTimerRef.current = setTimeout(() => {
+              retryTimerRef.current = null;
+              openSocket();
+            }, delay);
+          } else {
+            setMessage(reason + '. Broadcast stopped; check admin diagnostics.');
+            setState('error');
+            stateRef.current = 'error';
+            cleanup();
+          }
+        };
       };
-      socket.onclose = (event) => {
-        if (wsRef.current !== socket) return;
-        const reason = 'WebSocket closed (' + event.code + ', ' + (event.wasClean ? 'clean' : 'unclean') + ')' + (event.reason ? ': ' + event.reason : '');
-        setLastClose(reason);
-        setMessage(reason + '. Check the admin dashboard for server-side cause.');
-        setState('error');
-        cleanup();
-      };
+      openSocket();
     } catch (error) {
       cleanup();
+      stateRef.current = 'error';
       setState('error');
       setMessage(error instanceof Error ? error.message : 'Audio source could not be opened.');
     }

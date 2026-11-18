@@ -47,3 +47,19 @@ test('audio and disconnect reasons persist in SQLite', () => {
   assert.equal(result.recent[0]?.bytesReceived, 4096);
   assert.equal(result.recent[0]?.closeCode, 1006);
 });
+
+
+test('browser backlog and dropped frames are recorded without trusting malformed counters', () => {
+  const id = ops.startDjMetrics('Buffered set', 456);
+  ops.noteDjClientDiagnostics(id, 5, 393216);
+  assert.equal(ops.getDjMetrics().live?.browserDroppedFrames, 5);
+  assert.equal(ops.getDjMetrics().live?.browserBufferedBytes, 393216);
+  ops.noteDjClientDiagnostics(id, -500, -100);
+  assert.equal(ops.getDjMetrics().live?.browserDroppedFrames, 5);
+  assert.equal(ops.getDjMetrics().live?.browserBufferedBytes, 393216);
+  ops.noteDjClientDiagnostics(id, 3, 65536);
+  assert.equal(ops.getDjMetrics().live?.browserDroppedFrames, 5);
+  assert.equal(ops.getDjMetrics().live?.browserBufferedBytes, 65536);
+  ops.endDjMetrics(id, 'websocket_close_4008_uplink_queue_stalled', 4008);
+  assert.equal(ops.getDjMetrics().recent[0]?.closeCode, 4008);
+});
