@@ -182,12 +182,13 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
               if (Date.now() - diagnosticAt >= 4500) {
                 diagnosticAt = Date.now();
                 const buffered = packet.bufferedBytes ?? 0;
+                const threshold = audioFormat === 'webm_opus' ? 96 * 1024 : 384 * 1024;
                 noteConnectivity({
                   clientId: sessionId.replace(/-/g, ''), role: 'broadcaster',
-                  event: buffered >= 384 * 1024 ? 'broadcast_congestion' : 'broadcast_health',
-                  phase: buffered >= 384 * 1024 ? 'buffering' : 'playing',
+                  event: buffered >= threshold ? 'broadcast_congestion' : 'broadcast_health',
+                  phase: buffered >= threshold ? 'buffering' : 'playing',
                   queueBytes: buffered, droppedFrames: packet.droppedFrames ?? 0,
-                  details: 'Peak queue ' + Math.round((packet.peakBufferedBytes ?? buffered) / 1024) +
+                  details: audioFormat + '; peak queue ' + Math.round((packet.peakBufferedBytes ?? buffered) / 1024) +
                     ' KiB; congestion ' + Math.max(0, Math.round(packet.congestedMs ?? 0)) + 'ms',
                 });
               }
