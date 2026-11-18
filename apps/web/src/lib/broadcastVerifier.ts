@@ -85,8 +85,8 @@ export function compareFingerprints(
     let sourceMean = 0;
     let outputMean = 0;
     for (let i = 0; i < count; i += 1) {
-      sourceMean += input[i].spectrum[band] ?? -100;
-      outputMean += output[i].spectrum[receivedBand] ?? -100;
+      sourceMean += input[i]!.spectrum[band] ?? -100;
+      outputMean += output[i]!.spectrum[receivedBand] ?? -100;
     }
     sourceMean /= count;
     outputMean /= count;
@@ -95,8 +95,8 @@ export function compareFingerprints(
     let sourceVariance = 0;
     let outputVariance = 0;
     for (let i = 0; i < count; i += 1) {
-      const a = (input[i].spectrum[band] ?? -100) - sourceMean;
-      const b = (output[i].spectrum[receivedBand] ?? -100) - outputMean;
+      const a = (input[i]!.spectrum[band] ?? -100) - sourceMean;
+      const b = (output[i]!.spectrum[receivedBand] ?? -100) - outputMean;
       cov += a * b;
       sourceVariance += a * a;
       outputVariance += b * b;
@@ -120,13 +120,13 @@ export function compareFingerprints(
 export function findBroadcastMatch(input: Sample[], output: Sample[]): Match | null {
   if (output.length < WINDOW_SAMPLES || input.length < WINDOW_SAMPLES * 2) return null;
   const heard = output.slice(-WINDOW_SAMPLES);
-  const heardAt = heard[heard.length - 1].timeMs;
+  const heardAt = heard[heard.length - 1]!.timeMs;
   const heardLoudEnough = Math.max(avgLevel(heard, 'leftRms'), avgLevel(heard, 'rightRms')) > SILENCE_RMS;
   if (!heardLoudEnough) return null;
 
   let best: Match | null = null;
   for (let start = input.length - WINDOW_SAMPLES; start >= 0; start -= 1) {
-    const lastInput = input[start + WINDOW_SAMPLES - 1];
+    const lastInput = input[start + WINDOW_SAMPLES - 1]!;
     const delayMs = heardAt - lastInput.timeMs;
     if (delayMs < MIN_DELAY_MS) continue;
     if (delayMs > MAX_DELAY_MS) break;
@@ -158,7 +158,7 @@ function makeSampler(context: AudioContext, left: AnalyserNode, right: AnalyserN
     let power = 0;
     let peak = 0;
     for (let index = 0; index < waveform.length; index += 1) {
-      const sample = waveform[index];
+      const sample = waveform[index] ?? 0;
       power += sample * sample;
       peak = Math.max(peak, Math.abs(sample));
     }
@@ -168,7 +168,7 @@ function makeSampler(context: AudioContext, left: AnalyserNode, right: AnalyserN
       const last = Math.min(spectrum.length, Math.ceil(high / hzPerBin));
       let bandPower = 0;
       for (let index = first; index < last; index += 1) {
-        const db = Math.max(-110, Math.min(0, spectrum[index]));
+        const db = Math.max(-110, Math.min(0, (spectrum[index] ?? -110)));
         bandPower += 10 ** (db / 10);
       }
       return 10 * Math.log10(bandPower / Math.max(1, last - first) + 1e-12);
