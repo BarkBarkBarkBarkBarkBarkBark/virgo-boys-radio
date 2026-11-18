@@ -1,96 +1,51 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, type FormEvent } from 'react';
 import { PublicShell } from '@/components/PublicShell';
-import { apiFetch, ApiError } from '@/lib/api';
 
 export default function AdminLoginPage() {
-  const router = useRouter();
-  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
 
-  // If already signed in, hop straight to /admin.
-  useEffect(() => {
-    void apiFetch<{ username: string }>('/auth/me')
-      .then(() => router.replace('/admin'))
-      .catch(() => undefined);
-  }, [router]);
+  const signIn = async (event: FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    setMessage('');
+    try {
+      const response = await fetch('/api/ops/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }), cache: 'no-store',
+      });
+      const result = await response.json() as { ok?: boolean; error?: string };
+      if (!response.ok) throw new Error(result.error ?? 'Unable to sign in');
+      setPassword('');
+      window.location.assign('/admin');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Sign-in failed');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const onSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      setLoading(true);
-      setError(null);
-      try {
-        await apiFetch<{ ok: boolean; username: string }>('/auth/login', {
-          method: 'POST',
-          body: JSON.stringify({ username, password }),
-        });
-        router.replace('/admin');
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 401) {
-          setError('Invalid username or password.');
-        } else if (err instanceof ApiError && err.status === 429) {
-          setError('Too many attempts. Wait a minute and try again.');
-        } else {
-          setError(err instanceof Error ? err.message : 'Login failed.');
-        }
-      } finally {
-        setLoading(false);
-      }
-    },
-    [password, router, username],
-  );
-
-  return (
-    <PublicShell>
-      <div className="mx-auto max-w-md space-y-6">
-        <div className="rounded-[2rem] border border-stone-300/70 bg-white/80 p-6 shadow-sm">
-          <h2 className="text-2xl font-semibold text-ink">Admin sign-in</h2>
-          <p className="mt-2 text-sm text-muted">
-            Sign in to kick / block / open / close the live broadcaster.
-          </p>
-
-          <form onSubmit={(e) => void onSubmit(e)} className="mt-6 space-y-4">
-            <label className="block text-sm text-muted">
-              Username
-              <input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-                autoFocus
-                required
-                className="mt-2 w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-ink outline-none focus:border-accent-red"
-              />
-            </label>
-
-            <label className="block text-sm text-muted">
-              Password
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                required
-                className="mt-2 w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-ink outline-none focus:border-accent-red"
-              />
-            </label>
-
-            {error && <p className="text-sm text-accent-red">{error}</p>}
-
-            <button
-              type="submit"
-              disabled={loading || !username || !password}
-              className="w-full rounded-full border border-ink bg-ink px-6 py-3 text-sm font-semibold text-paper transition hover:border-accent-red hover:bg-accent-red disabled:opacity-50"
-            >
-              {loading ? 'Signing in…' : 'Sign in'}
-            </button>
-          </form>
-        </div>
+  return <PublicShell>
+    <div className="max-w-md mx-auto bg-white/85 border border-stone-300 p-7 space-y-5">
+      <div><p className="text-xs tracking-[0.25em] uppercase text-muted">Virgo Boys Radio / Private</p>
+        <h1 className="text-3xl font-bold mt-2">Station admin</h1>
+        <p className="text-sm mt-2 text-muted">Password-protected broadcast health and DJ access controls.</p>
       </div>
-    </PublicShell>
-  );
+      <form onSubmit={(e) => void signIn(e)} className="space-y-3">
+        <label className="block text-sm font-semibold" htmlFor="admin-password">Password</label>
+        <input id="admin-password" value={password} type="password" required
+          autoComplete="current-password" onChange={(e) => setPassword(e.target.value)}
+          className="w-full border border-stone-300 bg-white p-3 text-ink" />
+        <button type="submit" disabled={loading || !password}
+          className="w-full bg-ink text-paper py-3 font-bold uppercase tracking-wider disabled:opacity-50">
+          {loading ? 'Checking…' : 'Open admin'}
+        </button>
+        {message && <p role="alert" className="text-sm text-red-700">{message}</p>}
+      </form>
+      <p className="text-xs text-muted">Sessions expire after eight hours. For a public radio service, use a stronger password than a short memorable word before inviting external guests.</p>
+    </div>
+  </PublicShell>;
 }

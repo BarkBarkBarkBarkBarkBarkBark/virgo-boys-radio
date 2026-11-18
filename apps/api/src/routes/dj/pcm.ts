@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
+import { endDjMetrics, noteDjFrame, noteDjHeartbeat, startDjMetrics, verifyDjCredential } from '../../services/djOps.js';
 
 // Browser audio is 48 kHz, stereo, 16-bit PCM sent as binary WebSocket frames.
 // The server owns the Icecast source password; it is NEVER sent to the browser.
@@ -40,25 +41,29 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
     let stopped = false;
     let bytesReceived = 0;
     let lastFeedback = Date.now();
+    let sessionId: string | null = null;
+    let disconnectReason = 'socket_disconnected';
 
     const send = (message: Record<string, string | number>) => {
       if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message));
     };
-    const cleanup = () => {
+    const cleanup = (reason = disconnectReason, closeCode?: number) => {
       if (stopped) return;
       stopped = true;
       clearTimeout(authTimer);
       if (currentBroadcaster === socket) currentBroadcaster = null;
+      if (sessionId) endDjMetrics(sessionId, reason, closeCode);
       if (encoder) {
         encoder.stdin.destroy();
         encoder.kill('SIGTERM');
         encoder = null;
       }
     };
-    const fail = (message: string) => {
+    const fail = (message: string, reason = 'server_error') => {
+      disconnectReason = reason;
       send({ type: 'error', message });
       socket.close(1011, 'Broadcast unavailable');
-      cleanup();
+      cleanup(reason, 1011);
     };
 
     const authTimer = setTimeout(() => {
@@ -72,14 +77,16 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
           socket.close(1008, 'Authenticate first');
           return;
         }
-        let message: { type?: string; token?: string };
+        let message: { type?: string; token?: string; code?: string };
         try {
           message = JSON.parse(data.toString()) as typeof message;
         } catch {
           socket.close(1008, 'Invalid authentication');
           return;
         }
-        if (message.type !== 'auth' || !isValidToken(message.token ?? '')) {
+        const invite = verifyDjCredential({ token: message.token, code: message.code });
+        const legacyAccepted = isValidToken(message.token ?? '');
+        if (message.type !== 'auth' || (!invite && !legacyAccepted)) {
           socket.close(1008, 'Invalid invitation');
           return;
         }
@@ -106,10 +113,11 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
           '-content_type', 'audio/mpeg', '-f', 'mp3', '-method', 'PUT', output,
         ], { stdio: ['pipe', 'pipe', 'pipe'] });
         encoder.stdout.resume();
+        sessionId = startDjMetrics(invite?.label ?? 'Legacy invited DJ', encoder.pid ?? null);
 
-        encoder.on('error', () => fail('Station encoder could not be started.'));
+        encoder.on('error', () => fail('Station encoder could not be started.', 'ffmpeg_spawn_error'));
         encoder.on('exit', (code) => {
-          if (!stopped) fail('Station encoder stopped (' + String(code ?? 'unknown') + '). Check if an external DJ already owns the stream.');
+          if (!stopped) fail('Station encoder stopped (' + String(code ?? 'unknown') + '). Check if an external DJ already owns the stream.', 'ffmpeg_exit_' + String(code ?? 'unknown'));
         });
         // Read stderr so the child cannot block. Never log raw stderr because
         // ffmpeg may echo the source-password URL in error messages.
@@ -118,24 +126,38 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
         return;
       }
 
+      if (!isBinary) {
+        try {
+          const packet = JSON.parse(data.toString()) as { type?: string; clientTime?: number };
+          if (packet.type === 'heartbeat') {
+            if (sessionId) noteDjHeartbeat(sessionId);
+            send({ type: 'heartbeat', serverTime: Date.now(), clientTime: Number(packet.clientTime) || 0 });
+            return;
+          }
+        } catch { /* Malformed control frame. */ }
+      }
       if (!isBinary || !Buffer.isBuffer(data) || data.length === 0 || data.length > MAX_FRAME_BYTES || data.length % 4 !== 0) {
-        fail('Unexpected audio frame.');
+        fail('Unexpected audio frame.', 'invalid_audio_frame');
         return;
       }
       if (!encoder || !encoder.stdin.writable || encoder.stdin.writableLength > MAX_PENDING_BYTES) {
-        fail('Audio uplink is too slow. Stop playback and reconnect on a stronger network.');
+        fail('Audio uplink is too slow. Stop playback and reconnect on a stronger network.', 'encoder_backpressure');
         return;
       }
       encoder.stdin.write(data);
       bytesReceived += data.length;
+      if (sessionId) noteDjFrame(sessionId, data.length, encoder.stdin.writableLength);
       if (Date.now() - lastFeedback >= 5000) {
-        send({ type: 'stats', bytesReceived });
+        send({ type: 'stats', bytesReceived, pendingBytes: encoder.stdin.writableLength, serverTime: Date.now() });
         lastFeedback = Date.now();
       }
     });
 
-    socket.on('close', cleanup);
-    socket.on('error', cleanup);
+    socket.on('close', (code: number, reason: Buffer) => {
+      const safeReason = reason.toString().slice(0, 70).replace(/[^a-zA-Z0-9 _.-]/g, '');
+      cleanup('websocket_close_' + code + (safeReason ? '_' + safeReason : ''), code);
+    });
+    socket.on('error', () => cleanup('websocket_error'));
   });
 };
 

@@ -16,6 +16,10 @@ const SOURCES: { id: AudioSource; name: string; description: string }[] = [
 
 export function PrivateDjBooth() {
   const [hasInvite, setHasInvite] = useState(false);
+  const [entryCode, setEntryCode] = useState('');
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const [pendingBytes, setPendingBytes] = useState<number | null>(null);
+  const [lastClose, setLastClose] = useState('');
   const [source, setSource] = useState<AudioSource>('tone');
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState('');
@@ -33,6 +37,7 @@ export function PrivateDjBooth() {
   const meterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const testTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refreshDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return;
@@ -60,6 +65,8 @@ export function PrivateDjBooth() {
     if (meterTimerRef.current) clearInterval(meterTimerRef.current);
     if (testTimerRef.current) clearTimeout(testTimerRef.current);
     if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
+    if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+    heartbeatRef.current = null;
     meterTimerRef.current = null;
     testTimerRef.current = null;
     checkTimerRef.current = null;
@@ -105,7 +112,7 @@ export function PrivateDjBooth() {
 
   const run = async (testOnly: boolean) => {
     if (state === 'testing' || state === 'connecting' || state === 'sending') return;
-    if (!testOnly && !hasInvite) {
+    if (!testOnly && !hasInvite && !/^[A-HJ-NP-Z2-9]{12}$/.test(entryCode)) {
       setMessage('A private broadcast invitation is required to go live. You can still test all three sources locally.');
       setState('error');
       return;
@@ -114,6 +121,9 @@ export function PrivateDjBooth() {
     setSent(0);
     setPublicStatus('idle');
     setSourceNote('');
+    setLatencyMs(null);
+    setPendingBytes(null);
+    setLastClose('');
     setState('connecting');
     setMessage('Opening audio source…');
 
@@ -245,11 +255,11 @@ export function PrivateDjBooth() {
       wsRef.current = socket;
       socket.binaryType = 'arraybuffer';
       socket.onopen = () => {
-        socket.send(JSON.stringify({ type: 'auth', token: inviteRef.current }));
+        socket.send(JSON.stringify({ type: 'auth', ...(hasInvite ? { token: inviteRef.current } : { code: entryCode }) }));
         setMessage('Authenticating private DJ invitation…');
       };
       socket.onmessage = (event) => {
-        let reply: { type: string; message?: string; bytesReceived?: number };
+        let reply: { type: string; message?: string; bytesReceived?: number; pendingBytes?: number; clientTime?: number; serverTime?: number };
         try { reply = JSON.parse(event.data as string) as typeof reply; } catch { return; }
         if (reply.type === 'ready') {
           worklet.port.onmessage = (frame) => {
@@ -262,11 +272,17 @@ export function PrivateDjBooth() {
             socket.send(frame.data as ArrayBuffer);
           };
           input.connect(worklet);
+          heartbeatRef.current = setInterval(() => {
+            if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'heartbeat', clientTime: Date.now() }));
+          }, 5000);
           setState('sending');
-          setMessage('Audio is flowing to Fly. Verify the live listener endpoint to confirm Icecast playback.');
+          setMessage('Audio is flowing to Fly. Keep this tab foregrounded; verify the listener feed on another device.');
           checkTimerRef.current = setTimeout(() => void checkPublicStream(), 3000);
         } else if (reply.type === 'stats') {
           setSent(reply.bytesReceived ?? 0);
+          setPendingBytes(reply.pendingBytes ?? null);
+        } else if (reply.type === 'heartbeat' && reply.clientTime) {
+          setLatencyMs(Math.max(0, Date.now() - reply.clientTime));
         } else if (reply.type === 'error') {
           setMessage(reply.message ?? 'The station rejected this connection.');
           setState('error');
@@ -274,13 +290,15 @@ export function PrivateDjBooth() {
         }
       };
       socket.onerror = () => {
-        setMessage('Broadcast connection failed. Check that the latest Fly backend is deployed.');
+        setMessage('WebSocket error: network, reverse proxy, or backend failure. Check the admin disconnect log.');
         setState('error');
         cleanup();
       };
       socket.onclose = (event) => {
         if (wsRef.current !== socket) return;
-        setMessage(event.reason || 'Broadcast disconnected. Try again or ask the station operator.');
+        const reason = 'WebSocket closed (' + event.code + ', ' + (event.wasClean ? 'clean' : 'unclean') + ')' + (event.reason ? ': ' + event.reason : '');
+        setLastClose(reason);
+        setMessage(reason + '. Check the admin dashboard for server-side cause.');
         setState('error');
         cleanup();
       };
@@ -292,6 +310,7 @@ export function PrivateDjBooth() {
   };
 
   const busy = state === 'testing' || state === 'connecting' || state === 'sending';
+  const canBroadcast = hasInvite || /^[A-HJ-NP-Z2-9]{12}$/.test(entryCode);
   const meterPercent = (value: number) => Math.min(100, Math.round(Math.max(0, value) * 100));
 
   return (
@@ -363,15 +382,19 @@ export function PrivateDjBooth() {
         <div className="space-y-3">
           <h2 className="text-xl font-bold">3. Go live and listen</h2>
           {!hasInvite && (
-            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 p-3">
-              Local tests are available now. To broadcast, use a private DJ invitation from the station operator. No Icecast password is needed in the browser.
-            </p>
+            <label className="block text-sm text-muted">DJ access code
+              <input type="text" value={entryCode} disabled={busy} autoCapitalize="characters" autoComplete="off"
+                onChange={(event) => setEntryCode(event.target.value.toUpperCase().replace(/[^A-HJ-NP-Z2-9]/g, '').slice(0, 12))}
+                placeholder="12-character guest passcode"
+                className="block mt-2 w-full max-w-sm border border-stone-300 bg-white p-3 text-ink font-mono tracking-widest" />
+              <span className="block mt-2 text-xs">Or open a private magic link from the operator. Local audio tests do not require a code.</span>
+            </label>
           )}
           {state === 'sending' ? (
             <button type="button" onClick={stop}
               className="w-full rounded-lg bg-red-700 text-white py-5 font-bold uppercase tracking-[0.15em]">Stop broadcast</button>
           ) : (
-            <button type="button" onClick={() => void run(false)} disabled={!hasInvite || busy}
+            <button type="button" onClick={() => void run(false)} disabled={!canBroadcast || busy}
               className="w-full rounded-lg bg-ink text-white py-5 font-bold uppercase tracking-[0.15em] disabled:opacity-45">
               {state === 'connecting' ? 'Connecting…' : 'Go live'}
             </button>
@@ -381,7 +404,8 @@ export function PrivateDjBooth() {
               {state === 'sending' ? '● TRANSMITTING' : state === 'connecting' ? '● CONNECTING' : '● OFF AIR'}
             </p>
             <p className="text-muted">{message}</p>
-            {state === 'sending' && sent > 0 && <p className="text-xs text-muted">{(sent / 1024 / 1024).toFixed(1)} MB received by Fly.</p>}
+            {state === 'sending' && sent > 0 && <p className="text-xs text-muted">{(sent / 1024 / 1024).toFixed(1)} MB received by Fly. {latencyMs !== null ? 'Round-trip ' + latencyMs + ' ms. ' : ''}{pendingBytes !== null ? 'Encoder queue ' + Math.round(pendingBytes / 1024) + ' KiB.' : ''}</p>}
+            {lastClose && <p className="text-xs text-red-700">Last drop: {lastClose}</p>}
           </div>
           <div className="border-t border-stone-200 pt-4 space-y-2">
             <p className="text-xs font-bold uppercase tracking-wider">Public listening check</p>
