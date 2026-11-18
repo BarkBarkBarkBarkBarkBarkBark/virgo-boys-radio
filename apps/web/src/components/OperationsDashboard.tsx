@@ -5,6 +5,7 @@ import { ConnectivityLab } from '@/components/ConnectivityLab';
 
 type Live = {
   id: string; label: string; startedAt: string; uptimeSeconds: number; bytesReceived: number;
+  inputFormat?: 'webm_opus' | 'pcm_s16le';
   framesReceived: number; inputKbps: number; lastAudioAgeMs: number;
   lastHeartbeatAgeMs: number; ffmpegPid: number | null; encoderPendingBytes: number;
   browserBufferedBytes: number; browserDroppedFrames: number;
@@ -142,7 +143,8 @@ export function OperationsDashboard() {
           <dl className="grid grid-cols-2 gap-3 text-sm">
             {[
               ['Uplink throughput', live ? live.inputKbps + ' kbps' : '—'],
-              ['Expected stereo PCM', '≈1,536 kbps'],
+              ['Uplink codec', live ? live.inputFormat === 'webm_opus' ? 'WebM/Opus · 192 kbps requested' : 'PCM · 48 kHz stereo' : '—'],
+              ['Expected upload', live ? live.inputFormat === 'webm_opus' ? '≈192 kbps compressed' : '≈1,536 kbps PCM' : '—'],
               ['Last audio packet', live ? live.lastAudioAgeMs + ' ms ago' : '—'],
               ['Last browser heartbeat', live ? live.lastHeartbeatAgeMs + ' ms ago' : '—'],
               ['FFmpeg encoder PID', live?.ffmpegPid?.toString() ?? '—'],
@@ -155,7 +157,7 @@ export function OperationsDashboard() {
               <div key={heading}><dt className="text-xs text-muted">{heading}</dt><dd className="font-semibold">{value}</dd></div>
             ))}
           </dl>
-          <p className="text-xs text-muted">If the browser backlog increases, its uplink is congested; it temporarily skips late audio rather than instantly ending the set. A 4008 close identifies sustained upload congestion. A 1000 close means the tab or operator intentionally stopped. A 1005 close has no status code and is ambiguous.</p>
+          <p className="text-xs text-muted">If the browser backlog increases, its uplink is congested; it temporarily skips late audio rather than instantly ending the set. A 4008 close identifies sustained upload congestion. Opus uses ~192 kbps compressed audio with ordered WebM chunks; PCM uses ~1,536 kbps. A 1000 close means the tab or operator intentionally stopped. A 1005 close has no status code and is ambiguous.</p>
         </div>
 
         <div className="border border-stone-300 bg-white/85 p-5 space-y-3">

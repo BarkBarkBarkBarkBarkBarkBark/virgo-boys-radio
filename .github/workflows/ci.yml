@@ -34,11 +34,14 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Install FFmpeg for Opus stream integration tests
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
+
       - name: Test
         run: pnpm test
 
-      - name: Browser broadcast verifier unit tests
-        run: pnpm --filter @virgo-boys-radio/api exec tsx --test ../web/src/lib/broadcastVerifier.test.ts
+      - name: Browser broadcast verifier and Opus uplink tests
+        run: pnpm --filter @virgo-boys-radio/api exec tsx --test ../web/src/lib/broadcastVerifier.test.ts ../web/src/lib/opusUplink.test.ts
 
       - name: Build API
         run: pnpm --filter @virgo-boys-radio/api build

@@ -5,13 +5,15 @@ import { API_BASE } from '@/lib/api';
 import { PUBLIC_STREAM_URL } from '@/lib/streamConfig';
 import { startBroadcastVerifier, type BroadcastVerification, type BroadcastVerifier } from '@/lib/broadcastVerifier';
 import { sendStationTelemetry } from '@/lib/stationTelemetry';
+import { startOpusUplink, canRecordOpus, preferredUplinkFormat,
+  type UplinkFormat, type UploadPreference, type OpusUplink } from '@/lib/opusUplink';
 
 type AudioSource = 'tone' | 'tab' | 'interface';
 type BoothState = 'idle' | 'testing' | 'connecting' | 'sending' | 'error';
 type Meter = { left: number; right: number };
 
 const SOURCES: { id: AudioSource; name: string; description: string }[] = [
-  { id: 'interface', name: 'Audio interface', description: 'Your mixer or USB audio input' },
+  { id: 'interface', name: 'Audio device', description: 'Mixer, USB interface or virtual audio cable' },
   { id: 'tab', name: 'Browser tab', description: 'Audio from another tab' },
   { id: 'tone', name: 'Test tone', description: 'Check your stereo connection' },
 ];
@@ -23,6 +25,8 @@ export function PrivateDjBooth() {
   const [pendingBytes, setPendingBytes] = useState<number | null>(null);
   const [lastClose, setLastClose] = useState('');
   const [source, setSource] = useState<AudioSource>('interface');
+  const [uploadPreference, setUploadPreference] = useState<UploadPreference>('auto');
+  const [uplinkFormat, setUplinkFormat] = useState<UplinkFormat | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState('');
   const [state, setState] = useState<BoothState>('idle');
@@ -44,6 +48,7 @@ export function PrivateDjBooth() {
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const verifierRef = useRef<BroadcastVerifier | null>(null);
+  const opusUplinkRef = useRef<OpusUplink | null>(null);
   const lastMonitorLogRef = useRef({ phase: '', at: 0 });
 
   const refreshDevices = useCallback(async () => {
@@ -66,6 +71,8 @@ export function PrivateDjBooth() {
   }, [refreshDevices]);
 
   const cleanup = useCallback(() => {
+    opusUplinkRef.current?.stop();
+    opusUplinkRef.current = null;
     verifierRef.current?.stop();
     verifierRef.current = null;
     const socket = wsRef.current;
@@ -100,6 +107,7 @@ export function PrivateDjBooth() {
     setState('idle');
     setPublicStatus('idle');
     setVerification({ phase: 'idle', label: 'Off air' });
+    setUplinkFormat(null);
     setMessage('Off air. Audio capture has stopped.');
   };
 
@@ -132,6 +140,7 @@ export function PrivateDjBooth() {
     }
     cleanup();
     setSent(0);
+    setUplinkFormat(null);
     setPublicStatus('idle');
     setVerification({ phase: 'idle', label: 'Off air' });
     setSourceNote('');
@@ -270,6 +279,12 @@ export function PrivateDjBooth() {
       workletSilence.gain.value = 0;
       worklet.connect(workletSilence).connect(context.destination);
 
+      let requestedFormat: UplinkFormat = preferredUplinkFormat(uploadPreference, canRecordOpus());
+      // A MediaStreamDestination provides a silent, stereo source for the
+      // browser's native WebM/Opus encoder. It never plays into local speakers.
+      const opusDestination = requestedFormat === 'webm_opus' ? context.createMediaStreamDestination() : null;
+      if (opusDestination) input.connect(opusDestination);
+
       // The Web Audio graph stays connected while a WebSocket reconnects.
       // Do not silently turn off the DJ's source after a brief network interruption.
       const websocketUrl = API_BASE.replace(/^http/i, 'ws').replace(/\/$/, '') + '/dj/pcm';
@@ -279,6 +294,7 @@ export function PrivateDjBooth() {
       const MAX_RECONNECTS = 5;
       let retries = 0;
       let attached = false;
+      let activeFormat: UplinkFormat = 'pcm_s16le';
       let congestionStarted = 0;
       let droppedFrames = 0;
       let lastDiagnostic = 0;
@@ -303,7 +319,7 @@ export function PrivateDjBooth() {
 
       worklet.port.onmessage = (frame) => {
         const active = wsRef.current;
-        if (!active || active.readyState !== WebSocket.OPEN || stateRef.current !== 'sending') return;
+        if (!active || active.readyState !== WebSocket.OPEN || stateRef.current !== 'sending' || activeFormat !== 'pcm_s16le') return;
         const buffered = active.bufferedAmount;
         peakBufferedBytes = Math.max(peakBufferedBytes, buffered);
         if (buffered >= SOFT_BUFFER_BYTES) {
@@ -332,19 +348,70 @@ export function PrivateDjBooth() {
         wsRef.current = socket;
         socket.binaryType = 'arraybuffer';
         socket.onopen = () => {
-          socket.send(JSON.stringify({ type: 'auth', ...(hasInvite ? { token: inviteRef.current } : { code: entryCode }) }));
+          socket.send(JSON.stringify({
+            type: 'auth', audioFormat: requestedFormat,
+            ...(hasInvite ? { token: inviteRef.current } : { code: entryCode }),
+          }));
           setMessage(retries ? 'Reconnecting to the station…' : 'Connecting to the station…');
         };
         socket.onmessage = (event) => {
           if (wsRef.current !== socket) return;
-          let reply: { type: string; message?: string; bytesReceived?: number; pendingBytes?: number; clientTime?: number; serverTime?: number; supportsClientDiagnostics?: number };
+          let reply: {
+            type: string; message?: string; bytesReceived?: number; pendingBytes?: number;
+            clientTime?: number; serverTime?: number; supportsClientDiagnostics?: number;
+            audioFormat?: UplinkFormat;
+          };
           try { reply = JSON.parse(event.data as string) as typeof reply; } catch { return; }
           if (reply.type === 'ready') {
             serverSupportsDiagnostics = reply.supportsClientDiagnostics === 1;
-            if (!attached) {
+            // An older Fly deployment sends no format in ready. Fall back
+            // to PCM rather than sending WebM to a PCM-only FFmpeg decoder.
+            if (reply.audioFormat && reply.audioFormat !== 'pcm_s16le' && reply.audioFormat !== 'webm_opus') {
+              setMessage('Unsupported format returned by the station. Please check Fly deployment.');
+              socket.close(1008, 'invalid_audio_format');
+              return;
+            }
+            if (reply.audioFormat === 'webm_opus' && requestedFormat !== 'webm_opus') {
+              setMessage('Station selected Opus without browser support.');
+              socket.close(1008, 'unsupported_client_format');
+              return;
+            }
+            activeFormat = reply.audioFormat === 'webm_opus' ? 'webm_opus' : 'pcm_s16le';
+            opusUplinkRef.current?.stop();
+            opusUplinkRef.current = null;
+            if (activeFormat === 'webm_opus') {
+              if (!opusDestination) {
+                socket.close(4009, 'opus_input_unavailable');
+                return;
+              }
+              try {
+                // Every reconnect starts a NEW recorder/WebM header.
+                // WebM chunks are kept in order; none are individually dropped.
+                opusUplinkRef.current = startOpusUplink({
+                  stream: opusDestination.stream, socket,
+                  onBuffer: (buffered) => {
+                    peakBufferedBytes = Math.max(peakBufferedBytes, buffered);
+                    reportAudioHealth(socket, buffered);
+                  },
+                  onWarning: (warning) => setMessage(warning),
+                  onFailure: (failure) => {
+                    // A browser that advertises Opus but cannot actually
+                    // encode it should recover with the proven PCM path.
+                    if (failure.startsWith('Browser Opus encoder failed')) requestedFormat = 'pcm_s16le';
+                    setMessage(failure);
+                  },
+                });
+              } catch {
+                requestedFormat = 'pcm_s16le';
+                setMessage('Browser Opus encoder unavailable. Falling back to PCM on reconnect.');
+                socket.close(4009, 'opus_recorder_failed');
+                return;
+              }
+            } else if (!attached) {
               input.connect(worklet);
               attached = true;
             }
+            setUplinkFormat(activeFormat);
             if (heartbeatRef.current) clearInterval(heartbeatRef.current);
             heartbeatRef.current = setInterval(() => {
               if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'heartbeat', clientTime: Date.now() }));
@@ -354,7 +421,11 @@ export function PrivateDjBooth() {
             retries = 0;
             setState('sending');
             stateRef.current = 'sending';
-            setMessage('Live · Connection healthy');
+            setMessage(activeFormat === 'webm_opus'
+              ? 'Live · Opus compressed uplink'
+              : requestedFormat === 'webm_opus'
+                ? 'Live · Legacy PCM fallback (update Fly to enable Opus)'
+                : 'Live · PCM uplink');
             verifierRef.current?.stop();
             verifierRef.current = null;
             setVerification({ phase: 'checking', label: 'Verifying broadcast…' });
@@ -405,6 +476,10 @@ export function PrivateDjBooth() {
         socket.onclose = (event) => {
           if (wsRef.current !== socket) return;
           wsRef.current = null;
+          opusUplinkRef.current?.stop();
+          opusUplinkRef.current = null;
+          activeFormat = 'pcm_s16le';
+          setUplinkFormat(null);
           if (heartbeatRef.current) clearInterval(heartbeatRef.current);
           heartbeatRef.current = null;
           congestionStarted = 0;
@@ -417,7 +492,7 @@ export function PrivateDjBooth() {
           if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
           checkTimerRef.current = null;
           setLastClose(reason);
-          const retryable = [1001, 1005, 1006, 1011, 1012, 4008].includes(event.code);
+          const retryable = [1001, 1005, 1006, 1011, 1012, 4008, 4009].includes(event.code);
           if (retryable && retries < MAX_RECONNECTS && contextRef.current) {
             const delay = Math.min(1000 * 2 ** retries, 12_000);
             retries += 1;
@@ -583,6 +658,11 @@ export function PrivateDjBooth() {
                 {/slow|recover|interrupted/i.test(message) ? 'Connection is unstable. Check your internet.' : 'Keep this tab open during your set.'}
               </p>
             )}
+            {state === 'sending' && uplinkFormat && (
+              <p className="text-xs text-muted">
+                Upload: {uplinkFormat === 'webm_opus' ? 'Opus · ~192 kbps' : 'PCM · ~1,536 kbps'}
+              </p>
+            )}
             {state === 'sending' && publicStatus === 'unavailable' && (
               <p className="text-xs text-red-700">Listener stream not confirmed. Check from another device.</p>
             )}
@@ -635,6 +715,18 @@ export function PrivateDjBooth() {
               <summary className="cursor-pointer underline underline-offset-4">Connection details</summary>
               <div className="mt-3 space-y-2 border-l border-ink/20 pl-3">
                 <p>{message}</p>
+                <label className="block text-xs font-medium">
+                  Broadcast upload
+                  <select
+                    value={uploadPreference}
+                    disabled={busy}
+                    onChange={(event) => setUploadPreference(event.target.value as UploadPreference)}
+                    className="mt-1 block w-full max-w-sm border border-stone-300 bg-white p-2 text-xs text-ink disabled:opacity-60"
+                  >
+                    <option value="auto">Automatic — Opus when supported (recommended)</option>
+                    <option value="pcm">Uncompressed PCM — compatibility / troubleshooting</option>
+                  </select>
+                </label>
                 {sourceNote && <p>{sourceNote}</p>}
                 {state === 'sending' && verification.detail && <p>{verification.detail}</p>}
                 <p>Verification uses the actual public MP3 stream, decoded silently. No test tone is injected into your set.</p>

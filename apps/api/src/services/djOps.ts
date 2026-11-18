@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { getDb } from '../db/client.js';
+import type { DjAudioFormat } from './djFormat.js';
 
 type RecentSession = {
   id: string;
@@ -14,6 +15,7 @@ type RecentSession = {
 
 type LiveBroadcast = {
   id: string;
+  inputFormat: DjAudioFormat;
   label: string;
   startedAt: string;
   startedMs: number;
@@ -127,11 +129,11 @@ export function verifyDjCredential(message: { token?: string | undefined; code?:
   return a.length === b.length && timingSafeEqual(a, b) ? { id: invite.id, label: invite.label } : null;
 }
 
-export function startDjMetrics(label: string, pid: number | null) {
+export function startDjMetrics(label: string, pid: number | null, inputFormat: DjAudioFormat = 'pcm_s16le') {
   if (live) throw new Error('Another DJ is already active');
   const time = Date.now();
   const session: LiveBroadcast = {
-    id: randomUUID(), label, startedAt: new Date(time).toISOString(), startedMs: time,
+    id: randomUUID(), label, inputFormat, startedAt: new Date(time).toISOString(), startedMs: time,
     bytesReceived: 0, framesReceived: 0, lastFrameMs: time, lastHeartbeatMs: time,
     encoderPid: pid, encoderPendingBytes: 0, browserBufferedBytes: 0, browserDroppedFrames: 0, rateKbps: 0,
     rateWindowStart: time, rateWindowBytes: 0,
@@ -203,7 +205,7 @@ export function getDjMetrics() {
   return {
     generatedAt: new Date(now).toISOString(),
     live: live ? {
-      id: live.id, label: live.label, startedAt: live.startedAt,
+      id: live.id, label: live.label, startedAt: live.startedAt, inputFormat: live.inputFormat,
       uptimeSeconds: Math.round((now - live.startedMs) / 1000),
       bytesReceived: live.bytesReceived, framesReceived: live.framesReceived,
       inputKbps: live.rateKbps,

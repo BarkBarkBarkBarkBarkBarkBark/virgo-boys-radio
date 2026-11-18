@@ -3,11 +3,12 @@ import { timingSafeEqual } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { endDjMetrics, noteDjClientDiagnostics, noteDjFrame, noteDjHeartbeat, startDjMetrics, verifyDjCredential } from '../../services/djOps.js';
 import { recordConnectivity, type ConnectivityInput } from '../../services/stationConnectivity.js';
+import { negotiateDjAudioFormat, ffmpegInputArgs, validAudioFrame, audioFormatDescription, type DjAudioFormat } from '../../services/djFormat.js';
 
-// Browser audio is 48 kHz, stereo, 16-bit PCM sent as binary WebSocket frames.
-// The server owns the Icecast source password; it is NEVER sent to the browser.
+// The browser sends either legacy PCM or compressed WebM/Opus binary messages.
+// FFmpeg decodes both into the existing public 320 kbps MP3 mount.
+// The source password stays server-side; never return it to a browser.
 const MAX_PENDING_BYTES = 512 * 1024;
-const MAX_FRAME_BYTES = 64 * 1024;
 const AUTH_TIMEOUT_MS = 10_000;
 let currentBroadcaster: object | null = null;
 
@@ -45,6 +46,7 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
     let sessionId: string | null = null;
     let disconnectReason = 'socket_disconnected';
     let diagnosticAt = 0;
+    let audioFormat: DjAudioFormat = 'pcm_s16le';
     const noteConnectivity = (input: ConnectivityInput) => {
       // Observability must never interrupt the on-air audio pipeline, even
       // during database contention or a full volume.
@@ -91,7 +93,7 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
           socket.close(1008, 'Authenticate first');
           return;
         }
-        let message: { type?: string; token?: string; code?: string };
+        let message: { type?: string; token?: string; code?: string; audioFormat?: unknown };
         try {
           message = JSON.parse(data.toString()) as typeof message;
         } catch {
@@ -108,6 +110,12 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
           socket.close(1008, 'Another DJ is already connected');
           return;
         }
+        const negotiatedFormat = negotiateDjAudioFormat(message.audioFormat);
+        if (!negotiatedFormat) {
+          socket.close(1008, 'Unsupported broadcast audio format');
+          return;
+        }
+        audioFormat = negotiatedFormat;
         const sourcePassword = process.env.ICECAST_SOURCE_PASSWORD;
         if (!sourcePassword || process.env.ICECAST_ENABLED !== 'true') {
           fail('Icecast is not enabled for broadcasting.');
@@ -122,15 +130,15 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
         const output = 'icecast://source:' + encodeURIComponent(sourcePassword) + '@127.0.0.1:8000/radio.mp3';
         encoder = spawn('/usr/bin/ffmpeg', [
           '-hide_banner', '-nostdin', '-loglevel', 'error',
-          '-f', 's16le', '-ar', '48000', '-ac', '2', '-i', 'pipe:0',
+          ...ffmpegInputArgs(audioFormat),
           '-c:a', 'libmp3lame', '-b:a', '320k', '-ar', '48000', '-ac', '2',
           '-content_type', 'audio/mpeg', '-f', 'mp3', '-method', 'PUT', output,
         ], { stdio: ['pipe', 'pipe', 'pipe'] });
         encoder.stdout.resume();
-        sessionId = startDjMetrics(invite?.label ?? 'Legacy invited DJ', encoder.pid ?? null);
+        sessionId = startDjMetrics(invite?.label ?? 'Legacy invited DJ', encoder.pid ?? null, audioFormat);
         noteConnectivity({
           clientId: sessionId.replace(/-/g, ''), role: 'broadcaster', event: 'broadcast_connected',
-          phase: 'playing', details: 'Stereo PCM 48kHz uplink; FFmpeg MP3 source started',
+          phase: 'playing', details: audioFormatDescription(audioFormat) + '; FFmpeg MP3 source started',
         });
 
         encoder.on('error', () => fail('Station encoder could not be started.', 'ffmpeg_spawn_error'));
@@ -153,7 +161,10 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
             event: 'error', phase: 'error', details: category,
           });
         });
-        send({ type: 'ready', message: 'Secure connection established; sending stereo audio to the station.', supportsClientDiagnostics: 1 });
+        send({
+          type: 'ready', message: 'Secure connection established; sending stereo audio to the station.',
+          supportsClientDiagnostics: 1, audioFormat,
+        });
         return;
       }
 
@@ -171,12 +182,13 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
               if (Date.now() - diagnosticAt >= 4500) {
                 diagnosticAt = Date.now();
                 const buffered = packet.bufferedBytes ?? 0;
+                const threshold = audioFormat === 'webm_opus' ? 96 * 1024 : 384 * 1024;
                 noteConnectivity({
                   clientId: sessionId.replace(/-/g, ''), role: 'broadcaster',
-                  event: buffered >= 384 * 1024 ? 'broadcast_congestion' : 'broadcast_health',
-                  phase: buffered >= 384 * 1024 ? 'buffering' : 'playing',
+                  event: buffered >= threshold ? 'broadcast_congestion' : 'broadcast_health',
+                  phase: buffered >= threshold ? 'buffering' : 'playing',
                   queueBytes: buffered, droppedFrames: packet.droppedFrames ?? 0,
-                  details: 'Peak queue ' + Math.round((packet.peakBufferedBytes ?? buffered) / 1024) +
+                  details: audioFormat + '; peak queue ' + Math.round((packet.peakBufferedBytes ?? buffered) / 1024) +
                     ' KiB; congestion ' + Math.max(0, Math.round(packet.congestedMs ?? 0)) + 'ms',
                 });
               }
@@ -185,8 +197,8 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
           }
         } catch { /* Malformed control frame. */ }
       }
-      if (!isBinary || !Buffer.isBuffer(data) || data.length === 0 || data.length > MAX_FRAME_BYTES || data.length % 4 !== 0) {
-        fail('Unexpected audio frame.', 'invalid_audio_frame');
+      if (!isBinary || !Buffer.isBuffer(data) || !validAudioFrame(audioFormat, data.length)) {
+        fail('Invalid ' + audioFormat + ' audio chunk.', 'invalid_audio_frame');
         return;
       }
       if (!encoder || !encoder.stdin.writable || encoder.stdin.writableLength > MAX_PENDING_BYTES) {
