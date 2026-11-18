@@ -22,6 +22,7 @@ import adminEventsRoute from './routes/admin/events.js';
 import adminArtistsRoute from './routes/admin/artists.js';
 import authRoute from './routes/auth/index.js';
 import signalRoute from './routes/signal.js';
+import djIngestRoute from './routes/dj/pcm.js';
 import publicEventsRoute from './routes/public/events.js';
 import publicArtistsRoute from './routes/public/artists.js';
 
@@ -92,6 +93,7 @@ export async function buildServer() {
   await fastify.register(publicEventsRoute);
   await fastify.register(publicArtistsRoute);
   await fastify.register(signalRoute);
+  await fastify.register(djIngestRoute);
 
   return fastify;
 }
