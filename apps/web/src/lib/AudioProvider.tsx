@@ -24,6 +24,7 @@ import {
 import type { AlwaysOnPlaylist, SignalServerMessage, StationStatus } from '@virgo-boys-radio/shared';
 import { API_BASE, getSignalUrl, apiFetch } from '@/lib/api';
 import { PUBLIC_STREAM_URL, USE_ICECAST } from '@/lib/streamConfig';
+import { sendStationTelemetry } from '@/lib/stationTelemetry';
 import { getOrCreatePeerId } from '@/lib/peerId';
 
 // ─── Public interface ────────────────────────────────────────────────────────
@@ -488,8 +489,12 @@ function IcecastAudioProvider({ children }: { children: React.ReactNode }) {
     if (!playingWanted.current || !audio) return;
     audio.src = PUBLIC_STREAM_URL;
     audio.load();
-    void audio.play().catch(() => {
-      if (playingWanted.current) setMessage('Could not start audio. Tap Pause, then Play again.');
+    sendStationTelemetry('listener', 'reconnecting', { phase: 'connecting', details: 'Starting public Icecast stream' }, audio);
+    void audio.play().catch((cause: unknown) => {
+      if (!playingWanted.current) return;
+      const errorName = cause instanceof Error ? cause.name : 'unknown';
+      sendStationTelemetry('listener', 'play_rejected', { phase: 'error', details: errorName }, audio);
+      setMessage('Could not start audio. Tap Pause, then Play again.');
     });
   }, []);
 
@@ -497,6 +502,9 @@ function IcecastAudioProvider({ children }: { children: React.ReactNode }) {
     if (!playingWanted.current || retryTimer.current !== null) return;
     const delay = Math.min(15000, 2000 * Math.pow(2, Math.min(attempts.current++, 3)));
     setMessage('Connection interrupted. Reconnecting…');
+    sendStationTelemetry('listener', 'reconnect_scheduled', {
+      phase: 'connecting', details: 'retry delay ' + delay + 'ms, attempt ' + attempts.current,
+    }, audioRef.current);
     retryTimer.current = window.setTimeout(() => {
       retryTimer.current = null;
       start();
@@ -510,12 +518,14 @@ function IcecastAudioProvider({ children }: { children: React.ReactNode }) {
     if (next) {
       attempts.current = 0;
       setMessage('Connecting to high-quality radio…');
+      sendStationTelemetry('listener', 'play_requested', { phase: 'connecting' }, audioRef.current);
       start(); // Initiate play during the user's click gesture for mobile browsers.
     } else {
       audioRef.current?.pause();
       audioRef.current?.removeAttribute('src');
       audioRef.current?.load();
       setConnected(false);
+      sendStationTelemetry('listener', 'pause', { phase: 'paused', details: 'User stopped playback' }, audioRef.current);
       setMessage('Paused. Tap Play to listen.');
     }
   }, [clearTimers, start]);
@@ -528,11 +538,13 @@ function IcecastAudioProvider({ children }: { children: React.ReactNode }) {
       attempts.current = 0;
       setConnected(true);
       setMessage('Connected to radio.');
+      sendStationTelemetry('listener', 'playing', { phase: 'playing' }, audio);
     };
     const onBuffer = () => {
       if (!playingWanted.current) return;
       setConnected(false);
       setMessage('Buffering high-quality audio…');
+      sendStationTelemetry('listener', 'waiting', { phase: 'buffering' }, audio);
       if (stallTimer.current === null) {
         stallTimer.current = window.setTimeout(() => {
           stallTimer.current = null;
@@ -540,22 +552,47 @@ function IcecastAudioProvider({ children }: { children: React.ReactNode }) {
         }, 12000);
       }
     };
-    const onError = () => { setConnected(false); retry(); };
-    const onPause = () => setConnected(false);
+    const onStalled = () => {
+      sendStationTelemetry('listener', 'stalled', { phase: 'buffering', details: 'Media download stalled' }, audio);
+      onBuffer();
+    };
+    const onError = () => {
+      setConnected(false);
+      sendStationTelemetry('listener', 'error', {
+        phase: 'error', details: 'Media error ' + (audio.error?.code ?? 'unknown'),
+      }, audio);
+      retry();
+    };
+    const onEnded = () => {
+      sendStationTelemetry('listener', 'ended', { phase: 'stopped' }, audio);
+      onError();
+    };
+    const onPause = () => {
+      setConnected(false);
+      if (playingWanted.current) sendStationTelemetry('listener', 'pause', { phase: 'buffering', details: 'Unexpected media pause' }, audio);
+    };
+    const heartbeat = window.setInterval(() => {
+      if (!playingWanted.current) return;
+      sendStationTelemetry('listener', 'heartbeat', {
+        phase: audio.paused ? 'buffering' : audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA ? 'playing' : 'buffering',
+        details: 'Media element state snapshot',
+      }, audio);
+    }, 15000);
     audio.addEventListener('playing', onPlaying);
     audio.addEventListener('waiting', onBuffer);
-    audio.addEventListener('stalled', onBuffer);
+    audio.addEventListener('stalled', onStalled);
     audio.addEventListener('error', onError);
-    audio.addEventListener('ended', onError);
+    audio.addEventListener('ended', onEnded);
     audio.addEventListener('pause', onPause);
     return () => {
       clearTimers();
+      window.clearInterval(heartbeat);
       audio.pause();
       audio.removeEventListener('playing', onPlaying);
       audio.removeEventListener('waiting', onBuffer);
-      audio.removeEventListener('stalled', onBuffer);
+      audio.removeEventListener('stalled', onStalled);
       audio.removeEventListener('error', onError);
-      audio.removeEventListener('ended', onError);
+      audio.removeEventListener('ended', onEnded);
       audio.removeEventListener('pause', onPause);
     };
   }, [clearTimers, retry]);
