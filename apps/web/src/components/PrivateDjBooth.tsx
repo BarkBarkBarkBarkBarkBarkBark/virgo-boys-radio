@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_BASE } from '@/lib/api';
 import { PUBLIC_STREAM_URL } from '@/lib/streamConfig';
+import { startBroadcastVerifier, type BroadcastVerification, type BroadcastVerifier } from '@/lib/broadcastVerifier';
 
 type AudioSource = 'tone' | 'tab' | 'interface';
 type BoothState = 'idle' | 'testing' | 'connecting' | 'sending' | 'error';
@@ -29,6 +30,7 @@ export function PrivateDjBooth() {
   const [sourceNote, setSourceNote] = useState('');
   const [sent, setSent] = useState(0);
   const [publicStatus, setPublicStatus] = useState<'idle' | 'checking' | 'available' | 'unavailable'>('idle');
+  const [verification, setVerification] = useState<BroadcastVerification>({ phase: 'idle', label: 'Off air' });
   const inviteRef = useRef('');
   const wsRef = useRef<WebSocket | null>(null);
   const stateRef = useRef<BoothState>('idle');
@@ -40,6 +42,7 @@ export function PrivateDjBooth() {
   const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const verifierRef = useRef<BroadcastVerifier | null>(null);
 
   const refreshDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return;
@@ -61,6 +64,8 @@ export function PrivateDjBooth() {
   }, [refreshDevices]);
 
   const cleanup = useCallback(() => {
+    verifierRef.current?.stop();
+    verifierRef.current = null;
     const socket = wsRef.current;
     wsRef.current = null;
     if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) socket.close(1000, 'operator_or_page_stop');
@@ -92,6 +97,7 @@ export function PrivateDjBooth() {
     stateRef.current = 'idle';
     setState('idle');
     setPublicStatus('idle');
+    setVerification({ phase: 'idle', label: 'Off air' });
     setMessage('Off air. Audio capture has stopped.');
   };
 
@@ -125,6 +131,7 @@ export function PrivateDjBooth() {
     cleanup();
     setSent(0);
     setPublicStatus('idle');
+    setVerification({ phase: 'idle', label: 'Off air' });
     setSourceNote('');
     setLatencyMs(null);
     setPendingBytes(null);
@@ -212,6 +219,9 @@ export function PrivateDjBooth() {
       const rightMeter = context.createAnalyser();
       leftMeter.fftSize = 2048;
       rightMeter.fftSize = 2048;
+      // Identical FFT smoothing for the source and public listener fingerprints.
+      leftMeter.smoothingTimeConstant = 0.1;
+      rightMeter.smoothingTimeConstant = 0.1;
       input.connect(splitter);
       splitter.connect(leftMeter, 0);
       splitter.connect(rightMeter, 1);
@@ -242,6 +252,7 @@ export function PrivateDjBooth() {
         setMessage('Local five-second stereo test running. Audio is NOT being broadcast.');
         testTimerRef.current = setTimeout(() => {
           cleanup();
+          stateRef.current = 'idle';
           setState('idle');
           setMessage('Local source test finished. Go Live to test the full Icecast path.');
         }, 5000);
@@ -336,8 +347,25 @@ export function PrivateDjBooth() {
             setState('sending');
             stateRef.current = 'sending';
             setMessage('Live · Connection healthy');
+            verifierRef.current?.stop();
+            verifierRef.current = null;
+            setVerification({ phase: 'checking', label: 'Verifying broadcast…' });
             if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
-            checkTimerRef.current = setTimeout(() => void checkPublicStream(), 3000);
+            // Give FFmpeg/Icecast time to mount the new live stream before
+            // opening a second, completely silent browser listener.
+            checkTimerRef.current = setTimeout(() => {
+              if (stateRef.current !== 'sending') return;
+              verifierRef.current = startBroadcastVerifier({
+                context,
+                sourceLeft: leftMeter,
+                sourceRight: rightMeter,
+                streamUrl: PUBLIC_STREAM_URL,
+                onUpdate: (result) => {
+                  if (stateRef.current === 'sending') setVerification(result);
+                },
+              });
+              void checkPublicStream();
+            }, 2600);
           } else if (reply.type === 'stats') {
             setSent(reply.bytesReceived ?? 0);
             setPendingBytes(reply.pendingBytes ?? null);
@@ -363,6 +391,11 @@ export function PrivateDjBooth() {
           congestionStarted = 0;
           serverSupportsDiagnostics = false;
           const reason = 'WebSocket ' + event.code + (event.reason ? ' · ' + event.reason : '');
+          verifierRef.current?.stop();
+          verifierRef.current = null;
+          setVerification({ phase: 'checking', label: 'Reconnecting…' });
+          if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
+          checkTimerRef.current = null;
           setLastClose(reason);
           const retryable = [1001, 1005, 1006, 1011, 1012, 4008].includes(event.code);
           if (retryable && retries < MAX_RECONNECTS && contextRef.current) {
@@ -535,6 +568,38 @@ export function PrivateDjBooth() {
             )}
           </div>
 
+          {state === 'sending' && (
+            <div className="flex items-start gap-3 border border-ink/15 bg-paper/70 p-3" role="status" aria-live="polite">
+              <span
+                aria-hidden="true"
+                className={'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ' +
+                  (verification.phase === 'verified' ? 'bg-green-600'
+                    : verification.phase === 'warning' || verification.phase === 'unavailable' ? 'bg-red-600'
+                    : 'bg-amber-500')}
+              />
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="text-sm font-bold">{verification.label}</p>
+                {verification.phase === 'verified' && (
+                  <p className="text-xs text-muted">
+                    {verification.delayMs !== undefined ? (verification.delayMs / 1000).toFixed(1) + ' s listener delay' : ''}
+                    {verification.matchPercent !== undefined ? ' · ' + verification.matchPercent + '% signal match' : ''}
+                  </p>
+                )}
+                {(verification.phase === 'warning' || verification.phase === 'unavailable') && (
+                  <p className="text-xs text-muted">{verification.detail}</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => verifierRef.current?.retry()}
+                disabled={!verifierRef.current}
+                className="shrink-0 border border-ink/30 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider disabled:opacity-40"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-3">
             {PUBLIC_STREAM_URL && (
               <a
@@ -551,6 +616,8 @@ export function PrivateDjBooth() {
               <div className="mt-3 space-y-2 border-l border-ink/20 pl-3">
                 <p>{message}</p>
                 {sourceNote && <p>{sourceNote}</p>}
+                {state === 'sending' && verification.detail && <p>{verification.detail}</p>}
+                <p>Verification uses the actual public MP3 stream, decoded silently. No test tone is injected into your set.</p>}
                 {state === 'sending' && sent > 0 && (
                   <p>
                     {(sent / 1024 / 1024).toFixed(1)} MB sent
