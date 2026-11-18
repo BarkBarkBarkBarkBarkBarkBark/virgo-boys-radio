@@ -1,4 +1,14 @@
 :3001 {
+    # Local private stream access log, written on request completion.
+    # Rotated and bounded; only the server-side ops API exposes sanitized data.
+    log {
+        output file /data/radio-access.jsonl {
+            roll_size 5MiB
+            roll_keep 4
+            roll_keep_for 168h
+        }
+        format json
+    }
     @icecast path /radio.mp3
     handle @icecast {
         reverse_proxy 127.0.0.1:8000 {
