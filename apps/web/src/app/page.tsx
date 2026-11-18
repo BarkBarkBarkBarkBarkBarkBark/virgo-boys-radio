@@ -10,7 +10,7 @@ export default function HomePage() {
   const currentTrack = playlist?.tracks[currentFallbackIndex];
 
   return (
-    <div className="home-stage flex min-h-[calc(100dvh-72px)] flex-col bg-paper text-ink">
+    <div className="home-stage flex flex-col bg-paper text-ink">
       <Header />
 
       <main className="flex w-full flex-1 flex-col items-center justify-center gap-4 px-4 py-4 text-center sm:gap-6 sm:py-8">
