@@ -270,11 +270,14 @@ export function PrivateDjBooth() {
       let droppedFrames = 0;
       let lastDiagnostic = 0;
       let lastWarn = 0;
+      let serverSupportsDiagnostics = false;
 
       // Deliver a current diagnostic over the socket when possible. Messages
       // are deliberately small, sent at most every five seconds.
       const reportAudioHealth = (socket: WebSocket, bufferedBytes: number) => {
-        if (socket.readyState !== WebSocket.OPEN) return;
+        // Older Fly images reject unknown text frames as invalid audio.
+        // Never send telemetry until the server explicitly advertises support.
+        if (!serverSupportsDiagnostics || socket.readyState !== WebSocket.OPEN) return;
         const now = Date.now();
         if (now - lastDiagnostic < 5000) return;
         lastDiagnostic = now;
@@ -316,9 +319,10 @@ export function PrivateDjBooth() {
         };
         socket.onmessage = (event) => {
           if (wsRef.current !== socket) return;
-          let reply: { type: string; message?: string; bytesReceived?: number; pendingBytes?: number; clientTime?: number; serverTime?: number };
+          let reply: { type: string; message?: string; bytesReceived?: number; pendingBytes?: number; clientTime?: number; serverTime?: number; supportsClientDiagnostics?: number };
           try { reply = JSON.parse(event.data as string) as typeof reply; } catch { return; }
           if (reply.type === 'ready') {
+            serverSupportsDiagnostics = reply.supportsClientDiagnostics === 1;
             if (!attached) {
               input.connect(worklet);
               attached = true;
@@ -357,6 +361,7 @@ export function PrivateDjBooth() {
           if (heartbeatRef.current) clearInterval(heartbeatRef.current);
           heartbeatRef.current = null;
           congestionStarted = 0;
+          serverSupportsDiagnostics = false;
           const reason = 'WebSocket ' + event.code + (event.reason ? ' · ' + event.reason : '');
           setLastClose(reason);
           const retryable = [1001, 1005, 1006, 1011, 1012, 4008].includes(event.code);
