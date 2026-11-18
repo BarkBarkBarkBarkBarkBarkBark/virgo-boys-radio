@@ -2,7 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { endDjMetrics, noteDjClientDiagnostics, noteDjFrame, noteDjHeartbeat, startDjMetrics, verifyDjCredential } from '../../services/djOps.js';
-import { recordConnectivity } from '../../services/stationConnectivity.js';
+import { recordConnectivity, type ConnectivityInput } from '../../services/stationConnectivity.js';
 
 // Browser audio is 48 kHz, stereo, 16-bit PCM sent as binary WebSocket frames.
 // The server owns the Icecast source password; it is NEVER sent to the browser.
@@ -45,6 +45,12 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
     let sessionId: string | null = null;
     let disconnectReason = 'socket_disconnected';
     let diagnosticAt = 0;
+    const noteConnectivity = (input: ConnectivityInput) => {
+      // Observability must never interrupt the on-air audio pipeline, even
+      // during database contention or a full volume.
+      try { recordConnectivity(input, request.ip); }
+      catch { fastify.log.warn('DJ connectivity telemetry unavailable'); }
+    };
 
     const send = (message: Record<string, string | number>) => {
       if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message));
@@ -55,10 +61,10 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
       clearTimeout(authTimer);
       if (currentBroadcaster === socket) currentBroadcaster = null;
       if (sessionId) {
-        recordConnectivity({
+        noteConnectivity({
           clientId: sessionId.replace(/-/g, ''), role: 'broadcaster', event: 'broadcast_disconnected',
           phase: 'stopped', details: (reason + ' code ' + (closeCode ?? 'unknown')).slice(0, 150),
-        }, request.ip);
+        });
         endDjMetrics(sessionId, reason, closeCode);
       }
       if (encoder) {
@@ -122,10 +128,10 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
         ], { stdio: ['pipe', 'pipe', 'pipe'] });
         encoder.stdout.resume();
         sessionId = startDjMetrics(invite?.label ?? 'Legacy invited DJ', encoder.pid ?? null);
-        recordConnectivity({
+        noteConnectivity({
           clientId: sessionId.replace(/-/g, ''), role: 'broadcaster', event: 'broadcast_connected',
           phase: 'playing', details: 'Stereo PCM 48kHz uplink; FFmpeg MP3 source started',
-        }, request.ip);
+        });
 
         encoder.on('error', () => fail('Station encoder could not be started.', 'ffmpeg_spawn_error'));
         encoder.on('exit', (code) => {
@@ -142,10 +148,10 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
             : text.includes('401') ? 'source authorization failed'
             : text.includes('resource temporarily unavailable') ? 'resource unavailable'
             : 'encoder reported an error';
-          if (sessionId) recordConnectivity({
+          if (sessionId) noteConnectivity({
             clientId: sessionId.replace(/-/g, ''), role: 'broadcaster',
             event: 'error', phase: 'error', details: category,
-          }, request.ip);
+          });
         });
         send({ type: 'ready', message: 'Secure connection established; sending stereo audio to the station.', supportsClientDiagnostics: 1 });
         return;
@@ -165,14 +171,14 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
               if (Date.now() - diagnosticAt >= 4500) {
                 diagnosticAt = Date.now();
                 const buffered = packet.bufferedBytes ?? 0;
-                recordConnectivity({
+                noteConnectivity({
                   clientId: sessionId.replace(/-/g, ''), role: 'broadcaster',
                   event: buffered >= 384 * 1024 ? 'broadcast_congestion' : 'broadcast_health',
                   phase: buffered >= 384 * 1024 ? 'buffering' : 'playing',
                   queueBytes: buffered, droppedFrames: packet.droppedFrames ?? 0,
                   details: 'Peak queue ' + Math.round((packet.peakBufferedBytes ?? buffered) / 1024) +
                     ' KiB; congestion ' + Math.max(0, Math.round(packet.congestedMs ?? 0)) + 'ms',
-                }, request.ip);
+                });
               }
             }
             return;
