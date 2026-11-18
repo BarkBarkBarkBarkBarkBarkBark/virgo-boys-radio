@@ -116,8 +116,8 @@ export function PrivateDjBooth() {
         let left = 0;
         let right = 0;
         for (let n = 0; n < leftBuffer.length; n += 1) {
-          left = Math.max(left, Math.abs(leftBuffer[n]));
-          right = Math.max(right, Math.abs(rightBuffer[n]));
+          left = Math.max(left, Math.abs(leftBuffer[n] ?? 0));
+          right = Math.max(right, Math.abs(rightBuffer[n] ?? 0));
         }
         setMeter({ left, right });
       }, 150);
