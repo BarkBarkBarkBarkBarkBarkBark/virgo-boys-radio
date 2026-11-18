@@ -104,7 +104,8 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
           '-f', 's16le', '-ar', '48000', '-ac', '2', '-i', 'pipe:0',
           '-c:a', 'libmp3lame', '-b:a', '320k', '-ar', '48000', '-ac', '2',
           '-content_type', 'audio/mpeg', '-f', 'mp3', '-method', 'PUT', output,
-        ], { stdio: ['pipe', 'ignore', 'pipe'] });
+        ], { stdio: ['pipe', 'pipe', 'pipe'] });
+        encoder.stdout.resume();
 
         encoder.on('error', () => fail('Station encoder could not be started.'));
         encoder.on('exit', (code) => {
