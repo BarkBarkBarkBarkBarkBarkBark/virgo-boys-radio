@@ -24,6 +24,7 @@ export type AudioMeasurements = {
   clippedPercent: number;
   levelVariationDb: number;
   tonesDbfs: number[][];
+  bassPhaseDifferenceDeg: number;
 };
 export type AudioPipelineResult = {
   name: string;
@@ -33,6 +34,7 @@ export type AudioPipelineResult = {
   bassChangeDb: number;
   trebleChangeDb: number;
   stereoDifferenceDb: number;
+  bassPhaseErrorDeg: number;
   peakDbfs: number;
   clippedPercent: number;
   findings: string[];
@@ -58,6 +60,9 @@ function round(value: number): number {
 function db(value: number): number {
   return 20 * Math.log10(Math.max(value, 1e-9));
 }
+function wrapDegrees(value: number): number {
+  return ((value + 180) % 360 + 360) % 360 - 180;
+}
 function generateStereoPCM(): Buffer {
   const buffer = Buffer.alloc(SAMPLE_RATE * SECONDS * 4);
   for (let index = 0; index < SAMPLE_RATE * SECONDS; index += 1) {
@@ -75,7 +80,7 @@ function generateStereoPCM(): Buffer {
 }
 
 /** Compute coherent DFT tone amplitudes for each channel over middle windows. */
-function toneAmplitude(data: Buffer, startFrame: number, channel: number, frequency: number): number {
+function toneAmplitude(data: Buffer, startFrame: number, channel: number, frequency: number): { amplitude: number; phaseDeg: number } {
   const w = 2 * Math.PI * frequency / SAMPLE_RATE;
   const cw = Math.cos(w);
   const sw = Math.sin(w);
@@ -91,7 +96,7 @@ function toneAmplitude(data: Buffer, startFrame: number, channel: number, freque
     s = s * cw + c * sw;
     c = nextC;
   }
-  return 2 * Math.hypot(re, im) / WINDOW_FRAMES;
+  return { amplitude: 2 * Math.hypot(re, im) / WINDOW_FRAMES, phaseDeg: Math.atan2(im, re) * 180 / Math.PI };
 }
 export function measureStereoPCM(data: Buffer): AudioMeasurements {
   if (data.length % 4 !== 0 || data.length < 2 * SAMPLE_RATE * 4) {
@@ -102,6 +107,7 @@ export function measureStereoPCM(data: Buffer): AudioMeasurements {
   const rmsWindows: number[] = [];
   const tones: number[][] = [[], []];
   const toneSums = [[0, 0, 0], [0, 0, 0]];
+  const bassPhase: number[] = [0, 0];
   let peak = 0;
   let clipped = 0;
   let readSamples = 0;
@@ -121,7 +127,9 @@ export function measureStereoPCM(data: Buffer): AudioMeasurements {
     rmsWindows.push(db(Math.sqrt(power / (WINDOW_FRAMES * 2))));
     for (let channel = 0; channel < 2; channel += 1) {
       for (let t = 0; t < 3; t += 1) {
-        toneSums[channel]![t]! += toneAmplitude(data, frame, channel, TONE_CHANNELS[channel]![t]!);
+        const tone = toneAmplitude(data, frame, channel, TONE_CHANNELS[channel]![t]!);
+        toneSums[channel]![t]! += tone.amplitude;
+        if (t === 0 && frame === START_FRAME) bassPhase[channel] = tone.phaseDeg;
       }
     }
   }
@@ -136,6 +144,7 @@ export function measureStereoPCM(data: Buffer): AudioMeasurements {
     clippedPercent: round(clipped / readSamples * 100),
     levelVariationDb: round(Math.max(...rmsWindows) - Math.min(...rmsWindows)),
     tonesDbfs: tones,
+    bassPhaseDifferenceDeg: round(wrapDegrees(bassPhase[1]! - bassPhase[0]!)),
   };
 }
 
@@ -152,18 +161,20 @@ export function compareAudio(reference: AudioMeasurements, measured: AudioMeasur
   const leftMidChange = measured.tonesDbfs[0]![1]! - reference.tonesDbfs[0]![1]!;
   const rightMidChange = measured.tonesDbfs[1]![1]! - reference.tonesDbfs[1]![1]!;
   const imbalance = Math.abs(leftMidChange - rightMidChange);
+  const bassPhaseError = Math.abs(wrapDegrees(measured.bassPhaseDifferenceDeg - reference.bassPhaseDifferenceDeg));
   const findings: string[] = [];
   if (Math.abs(rMs) > 2) findings.push('Overall RMS changed by more than 2 dB');
   if (pumping > 1.5) findings.push('Added more than 1.5 dB of fluctuation to a steady signal');
   if (Math.abs(bass) > 2.5) findings.push('56 Hz sub-bass amplitude changed by more than 2.5 dB');
   if (Math.abs(treble) > 3.5) findings.push('7.2 kHz treble amplitude changed by more than 3.5 dB');
   if (imbalance > 2) findings.push('Left/right channel gain is inconsistent');
+  if (bassPhaseError > 45) findings.push('Left/right sub-bass polarity or phase differs from the reference');
   if (measured.clippedPercent > 0.01) findings.push('Output includes samples at digital full scale');
   return {
     name, passed: findings.length === 0,
     rmsChangeDb: round(rMs), pumpingDb: round(pumping),
     bassChangeDb: round(bass), trebleChangeDb: round(treble),
-    stereoDifferenceDb: round(imbalance),
+    stereoDifferenceDb: round(imbalance), bassPhaseErrorDeg: round(bassPhaseError),
     peakDbfs: measured.peakDbfs, clippedPercent: measured.clippedPercent,
     findings,
   };
