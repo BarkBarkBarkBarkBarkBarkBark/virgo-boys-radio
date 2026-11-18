@@ -99,7 +99,11 @@ const opsRoute: FastifyPluginAsync = async (fastify) => {
     // A single small shared-CPU Fly machine hosts the production radio.
     // This diagnostic is intentionally refused during any real broadcast:
     // running multiple FFmpeg processes while on air could cause artifacts.
-    if (getDjMetrics().live || (await readIcecastStatus()).sourceConnected) {
+    const origin = await readIcecastStatus();
+    if (!origin.reachable) {
+      return reply.code(503).send({ error: 'Icecast status is unavailable; cannot confirm that the station is off air.' });
+    }
+    if (getDjMetrics().live || origin.sourceConnected) {
       return reply.code(409).send({
         error: 'Finish the live broadcast before running audio diagnostics. The test never interrupts listeners.',
       });
