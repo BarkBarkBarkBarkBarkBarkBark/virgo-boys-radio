@@ -617,7 +617,7 @@ export function PrivateDjBooth() {
                 <p>{message}</p>
                 {sourceNote && <p>{sourceNote}</p>}
                 {state === 'sending' && verification.detail && <p>{verification.detail}</p>}
-                <p>Verification uses the actual public MP3 stream, decoded silently. No test tone is injected into your set.</p>}
+                <p>Verification uses the actual public MP3 stream, decoded silently. No test tone is injected into your set.</p>
                 {state === 'sending' && sent > 0 && (
                   <p>
                     {(sent / 1024 / 1024).toFixed(1)} MB sent
