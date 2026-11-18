@@ -9,6 +9,9 @@
         }
         format json
     }
+    # Never write ops requests or x-station-ops-key headers to access logs.
+    @notStream not path /radio.mp3
+    log_skip @notStream
     @icecast path /radio.mp3
     handle @icecast {
         reverse_proxy 127.0.0.1:8000 {
