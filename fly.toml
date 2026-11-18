@@ -8,7 +8,7 @@ primary_region = "iad"
   PORT = "3002"
   APP_ENV = "production"
   SQLITE_DB_PATH = "/data/wstprtradio.db"
-  CORS_ALLOWED_ORIGINS = "https://wstprtradio.com,https://www.wstprtradio.com,https://wst-prt-radio.vercel.app,https://virgo-boys-radio.vercel.app"
+  CORS_ALLOWED_ORIGINS = "https://wstprtradio.com,https://www.wstprtradio.com,https://wst-prt-radio.vercel.app,https://virgo-boys-radio.vercel.app,https://virgoboys.com,https://www.virgoboys.com"
   STATION_NAME = "Virgo Boys Radio"
   # Uploaded audio lives on the persistent /data volume so songs survive
   # machine restarts and redeploys.
