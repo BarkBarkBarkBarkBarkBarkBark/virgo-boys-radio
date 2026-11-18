@@ -41,7 +41,7 @@ export function PlayerBar() {
   const listeners = status?.listenerCount ?? 0;
 
   const playbackText = transport === 'webrtc' && enabled && message.startsWith('Now playing:')
-    ? message.replace(/^Now playing:\\s*/i, '')
+    ? message.slice('Now playing:'.length).trimStart()
     : !enabled ? 'Ready to listen'
     : connected ? 'Listening'
     : /could not start/i.test(message) ? 'Playback unavailable'
