@@ -47,7 +47,7 @@ export function recordConnectivity(input: ConnectivityInput, observedIp: string)
       bounded(input.droppedFrames, 1e9), bounded(input.delayMs, 120_000), bounded(input.matchPercent, 100));
   if (now - lastPrune > 3_600_000) {
     lastPrune = now;
-    getDb().prepare("DELETE FROM station_connectivity_events WHERE created_at < datetime('now', '-7 days')").run();
+    getDb().prepare("DELETE FROM station_connectivity_events WHERE datetime(created_at) < datetime('now', '-7 days')").run();
     getDb().prepare('DELETE FROM station_connectivity_events WHERE id IN ' +
       '(SELECT id FROM station_connectivity_events ORDER BY id DESC LIMIT -1 OFFSET 18000)').run();
   }
@@ -71,13 +71,13 @@ export function getConnectivityClients() {
     'last.created_at AS lastSeen, last.phase, last.event, last.details, ' +
     'last.buffered_seconds AS bufferedSeconds, last.queue_bytes AS queueBytes, ' +
     'last.dropped_frames AS droppedFrames, last.delay_ms AS delayMs, last.match_percent AS matchPercent, ' +
-    "CASE WHEN last.created_at > datetime('now', '-45 seconds') " +
+    "CASE WHEN datetime(last.created_at) > datetime('now', '-45 seconds') " +
     "AND last.phase NOT IN ('paused', 'stopped', 'error') THEN 1 ELSE 0 END AS recentlyActive " +
     'FROM station_connectivity_events last ' +
     'INNER JOIN (SELECT client_id, MAX(id) AS id FROM station_connectivity_events ' +
-    "WHERE created_at > datetime('now', '-24 hours') GROUP BY client_id) latest ON latest.id = last.id " +
+    "WHERE datetime(created_at) > datetime('now', '-24 hours') GROUP BY client_id) latest ON latest.id = last.id " +
     'INNER JOIN (SELECT client_id, MIN(created_at) AS first_seen FROM station_connectivity_events ' +
-    "WHERE created_at > datetime('now', '-24 hours') GROUP BY client_id) first ON first.client_id = last.client_id " +
+    "WHERE datetime(created_at) > datetime('now', '-24 hours') GROUP BY client_id) first ON first.client_id = last.client_id " +
     'ORDER BY last.id DESC LIMIT 80').all();
 }
 function tail(path: string, maxBytes: number): string {
