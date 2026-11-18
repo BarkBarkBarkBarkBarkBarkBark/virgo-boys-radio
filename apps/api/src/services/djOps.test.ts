@@ -61,5 +61,5 @@ test('browser backlog and dropped frames are recorded without trusting malformed
   assert.equal(ops.getDjMetrics().live?.browserDroppedFrames, 5);
   assert.equal(ops.getDjMetrics().live?.browserBufferedBytes, 65536);
   ops.endDjMetrics(id, 'websocket_close_4008_uplink_queue_stalled', 4008);
-  assert.equal(ops.getDjMetrics().recent[0]?.closeCode, 4008);
+  assert.equal(ops.getDjMetrics().recent.find((session) => session.id === id)?.closeCode, 4008);
 });
