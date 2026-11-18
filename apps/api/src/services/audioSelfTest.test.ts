@@ -39,6 +39,24 @@ test('automated comparison flags artificial pumping and gain changes', () => {
   assert.ok(report.pumpingDb > 4, 'Expected audible level fluctuation to be detected');
 });
 
+test('56 Hz stereo polarity reversal is detected even when levels match', () => {
+  const referenceData = Buffer.alloc(sampleRate * 4 * 4);
+  const reversedData = Buffer.alloc(referenceData.length);
+  for (let frame = 0; frame < sampleRate * 4; frame += 1) {
+    const sample = Math.round(0.15 * 32767 * Math.sin(2 * Math.PI * 56 * frame / sampleRate));
+    referenceData.writeInt16LE(sample, frame * 4);
+    referenceData.writeInt16LE(sample, frame * 4 + 2);
+    reversedData.writeInt16LE(sample, frame * 4);
+    reversedData.writeInt16LE(-sample, frame * 4 + 2);
+  }
+  const difference = compareAudio(
+    measureStereoPCM(referenceData), measureStereoPCM(reversedData), 'inverted polarity',
+  );
+  assert.ok(difference.bassPhaseErrorDeg >= 179);
+  assert.equal(difference.passed, false);
+  assert.ok(difference.findings.some((finding) => finding.includes('polarity')));
+});
+
 test('bad or short PCM output cannot be treated as a successful test', () => {
   assert.throws(() => measureStereoPCM(Buffer.alloc(40)), /Invalid or truncated/);
 });
