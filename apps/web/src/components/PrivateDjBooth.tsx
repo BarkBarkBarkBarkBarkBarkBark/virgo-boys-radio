@@ -9,9 +9,9 @@ type BoothState = 'idle' | 'testing' | 'connecting' | 'sending' | 'error';
 type Meter = { left: number; right: number };
 
 const SOURCES: { id: AudioSource; name: string; description: string }[] = [
-  { id: 'tone', name: 'Built-in test audio', description: 'Generate 440 Hz in the left channel and 660 Hz in the right channel. No equipment needed.' },
-  { id: 'tab', name: 'Browser tab audio', description: 'Share another browser tab with audio. Use content you have permission to broadcast.' },
-  { id: 'interface', name: 'Mixer or audio interface', description: 'Use stereo USB input, or a system monitor/loopback input if your computer offers one.' },
+  { id: 'interface', name: 'Audio interface', description: 'Your mixer or USB audio input' },
+  { id: 'tab', name: 'Browser tab', description: 'Audio from another tab' },
+  { id: 'tone', name: 'Test tone', description: 'Check your stereo connection' },
 ];
 
 export function PrivateDjBooth() {
@@ -20,7 +20,7 @@ export function PrivateDjBooth() {
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const [pendingBytes, setPendingBytes] = useState<number | null>(null);
   const [lastClose, setLastClose] = useState('');
-  const [source, setSource] = useState<AudioSource>('tone');
+  const [source, setSource] = useState<AudioSource>('interface');
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceId, setDeviceId] = useState('');
   const [state, setState] = useState<BoothState>('idle');
@@ -397,121 +397,189 @@ export function PrivateDjBooth() {
   const meterPercent = (value: number) => Math.min(100, Math.round(Math.max(0, value) * 100));
 
   return (
-    <section className="mx-auto max-w-3xl space-y-6">
-      <div className="space-y-3">
-        <p className="text-xs font-mono uppercase tracking-[0.3em] text-muted">Virgo Boys Radio / DJ booth</p>
-        <h1 className="text-4xl font-bold uppercase tracking-[0.08em]">Play audio. Go live.</h1>
-        <p className="text-sm text-muted">No encoder to install. Generate a test signal, share a browser tab, or capture your audio interface.</p>
-      </div>
+    <section className="mx-auto max-w-3xl space-y-5">
+      <header className="space-y-2">
+        <p className="text-[10px] font-mono uppercase tracking-[0.3em] text-muted">Virgo Boys Radio / Private</p>
+        <h1 className="text-3xl font-bold uppercase tracking-[0.12em] sm:text-4xl">DJ booth</h1>
+        <p className="text-sm text-muted">Choose your input. Check your levels. Go live.</p>
+      </header>
 
-      <div className="border border-stone-300 bg-white/85 p-5 sm:p-7 space-y-6">
-        <div className="space-y-3">
-          <h2 className="text-xl font-bold">1. Choose where the sound comes from</h2>
-          <div className="grid gap-2 md:grid-cols-3">
+      <div className="space-y-7 border border-ink/15 bg-white/85 p-4 sm:p-6">
+        <section aria-labelledby="input-heading" className="space-y-3">
+          <h2 id="input-heading" className="text-sm font-bold uppercase tracking-[0.16em]">Audio input</h2>
+          <div className="grid gap-2 sm:grid-cols-3">
             {SOURCES.map((item) => (
-              <button type="button" key={item.id} disabled={busy}
+              <button
+                type="button"
+                key={item.id}
+                disabled={busy}
+                aria-pressed={source === item.id}
                 onClick={() => { setSource(item.id); setState('idle'); setMessage('Source selected. Run a local test or go live.'); setMeter({ left: 0, right: 0 }); }}
-                className={'text-left border p-4 transition-colors disabled:opacity-60 ' +
-                  (source === item.id ? 'border-ink bg-stone-100' : 'border-stone-300 hover:border-ink')}>
-                <span className="block font-bold text-sm">{item.name}</span>
-                <span className="block text-xs mt-2 text-muted leading-5">{item.description}</span>
+                className={'min-h-[72px] border p-3 text-left transition-colors disabled:opacity-60 ' +
+                  (source === item.id ? 'border-ink bg-paper' : 'border-ink/20 hover:border-ink')}
+              >
+                <span className="block text-sm font-bold">{item.name}</span>
+                <span className="mt-1 block text-xs leading-4 text-muted">{item.description}</span>
               </button>
             ))}
           </div>
+
           {source === 'interface' && (
-            <label className="block text-xs text-muted">Audio input
-              <select value={deviceId} disabled={busy} onChange={(event) => setDeviceId(event.target.value)}
-                className="mt-2 w-full border border-stone-300 p-3 bg-white text-sm text-ink">
-                <option value="">System default input</option>
+            <label className="block text-xs font-medium text-muted">
+              Input device
+              <select
+                value={deviceId}
+                disabled={busy}
+                onChange={(event) => setDeviceId(event.target.value)}
+                className="mt-2 w-full border border-stone-300 bg-white p-3 text-sm text-ink"
+              >
+                <option value="">System default</option>
                 {devices.map((device) => (
                   <option key={device.deviceId} value={device.deviceId}>
                     {device.label || 'Audio input ' + device.deviceId.slice(0, 6)}
                   </option>
                 ))}
               </select>
-              <span className="block mt-2">A &quot;Monitor of …&quot; input can capture your computer&apos;s playback, while a physical interface input captures the connected mixer.</span>
             </label>
           )}
-          {source === 'tab' && (
-            <p className="text-xs text-muted leading-5">Chrome or Edge recommended. Choose the tab playing audio and enable <strong>Share tab audio</strong> when prompted. The site sends audio only; no screen video is transmitted. Sharing protected media may not work.</p>
+          {(source === 'interface' || source === 'tab') && (
+            <details className="text-xs leading-5 text-muted">
+              <summary className="w-fit cursor-pointer underline underline-offset-4">Input help</summary>
+              <p className="mt-2">
+                {source === 'interface'
+                  ? 'Choose your stereo mixer or audio interface. For desktop playback, select a system loopback input.'
+                  : 'In Chrome or Edge, share the tab playing audio and turn on Share tab audio.'}
+              </p>
+            </details>
           )}
-          {source === 'tone' && (
-            <p className="text-xs text-muted">The booth generates separate left/right tones internally. No microphone, mixer or YouTube needed.</p>
-          )}
-        </div>
+        </section>
 
-        <div className="space-y-3">
-          <h2 className="text-xl font-bold">2. Test the stereo source</h2>
+        <section aria-labelledby="levels-heading" className="space-y-3">
+          <h2 id="levels-heading" className="text-sm font-bold uppercase tracking-[0.16em]">Levels</h2>
           <div className="space-y-2">
             {(['left', 'right'] as const).map((side) => (
               <div key={side} className="flex items-center gap-3 text-xs">
-                <span className="w-8 font-mono uppercase font-bold">{side === 'left' ? 'L' : 'R'}</span>
-                <div className="flex-1 h-3 bg-stone-200">
-                  <div className={'h-full transition-all ' + (meter[side] >= 0.99 ? 'bg-red-600' : 'bg-ink')}
-                    style={{ width: meterPercent(meter[side]) + '%' }} />
+                <span className="w-5 font-mono font-bold uppercase">{side === 'left' ? 'L' : 'R'}</span>
+                <div className="h-2 flex-1 bg-stone-200">
+                  <div
+                    className={'h-full transition-all ' + (meter[side] >= 0.99 ? 'bg-red-600' : 'bg-ink')}
+                    style={{ width: meterPercent(meter[side]) + '%' }}
+                  />
                 </div>
-                <span className="w-11 text-right font-mono">{meterPercent(meter[side])}%</span>
+                <span className="w-10 text-right font-mono">{meterPercent(meter[side])}%</span>
               </div>
             ))}
           </div>
-          {sourceNote && <p className="text-xs text-muted">{sourceNote}</p>}
-          <button type="button" disabled={busy} onClick={() => void run(true)}
-            className="border border-ink px-5 py-3 text-xs font-bold uppercase tracking-widest disabled:opacity-50">
-            {state === 'testing' ? 'Testing…' : 'Test source locally (5 seconds)'}
+          {sourceNote.includes('MONO') && <p className="text-xs font-semibold text-red-700">{sourceNote}</p>}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void run(true)}
+            className="border border-ink px-5 py-3 text-xs font-bold uppercase tracking-[0.15em] transition-colors hover:bg-paper disabled:opacity-50"
+          >
+            {state === 'testing' ? 'Checking…' : 'Soundcheck · 5s'}
           </button>
-          <p className="text-xs text-muted">This meter check never transmits audio. The Go Live step is the end-to-end broadcast test.</p>
-        </div>
+          <p className="text-xs text-muted">Local check only. Nothing goes on air.</p>
+        </section>
 
-        <div className="space-y-3">
-          <h2 className="text-xl font-bold">3. Go live and listen</h2>
+        <section aria-labelledby="broadcast-heading" className="space-y-3">
+          <h2 id="broadcast-heading" className="text-sm font-bold uppercase tracking-[0.16em]">Broadcast</h2>
           {!hasInvite && (
-            <label className="block text-sm text-muted">DJ access code
-              <input type="text" value={entryCode} disabled={busy} autoCapitalize="characters" autoComplete="off"
+            <label className="block text-xs font-medium text-muted">
+              Access code
+              <input
+                type="text"
+                value={entryCode}
+                disabled={busy}
+                autoCapitalize="characters"
+                autoComplete="off"
                 onChange={(event) => setEntryCode(event.target.value.toUpperCase().replace(/[^A-HJ-NP-Z2-9]/g, '').slice(0, 12))}
-                placeholder="12-character guest passcode"
-                className="block mt-2 w-full max-w-sm border border-stone-300 bg-white p-3 text-ink font-mono tracking-widest" />
-              <span className="block mt-2 text-xs">Or open a private magic link from the operator. Local audio tests do not require a code.</span>
+                placeholder="12-character code"
+                className="mt-2 block w-full max-w-sm border border-stone-300 bg-white p-3 font-mono tracking-widest text-ink"
+              />
             </label>
           )}
+
           {state === 'sending' ? (
-            <button type="button" onClick={stop}
-              className="w-full rounded-lg bg-red-700 text-white py-5 font-bold uppercase tracking-[0.15em]">Stop broadcast</button>
+            <button
+              type="button"
+              onClick={stop}
+              className="w-full bg-accent-red py-4 text-sm font-bold uppercase tracking-[0.16em] text-white"
+            >
+              End broadcast
+            </button>
           ) : (
-            <button type="button" onClick={() => void run(false)} disabled={!canBroadcast || busy}
-              className="w-full rounded-lg bg-ink text-white py-5 font-bold uppercase tracking-[0.15em] disabled:opacity-45">
+            <button
+              type="button"
+              onClick={() => void run(false)}
+              disabled={!canBroadcast || busy}
+              className="w-full bg-ink py-4 text-sm font-bold uppercase tracking-[0.16em] text-white transition-colors hover:bg-accent-red disabled:opacity-45"
+            >
               {state === 'connecting' ? 'Connecting…' : 'Go live'}
             </button>
           )}
-          <div role="status" aria-live="polite" className="space-y-1 text-sm">
-            <p className={state === 'sending' ? 'font-bold text-red-700' : 'font-semibold text-muted'}>
-              {state === 'sending' ? '● TRANSMITTING' : state === 'connecting' ? '● CONNECTING' : '● OFF AIR'}
+
+          <div role="status" aria-live="polite" className="space-y-1">
+            <p className={'text-xs font-bold uppercase tracking-[0.15em] ' + (state === 'sending' ? 'text-accent-red' : 'text-muted')}>
+              {state === 'sending' ? '● On air' : state === 'connecting' ? '● Connecting' : '● Off air'}
             </p>
-            <p className="text-muted">{message}</p>
-            {state === 'sending' && sent > 0 && <p className="text-xs text-muted">{(sent / 1024 / 1024).toFixed(1)} MB received by Fly. {latencyMs !== null ? 'Round-trip ' + latencyMs + ' ms. ' : ''}{pendingBytes !== null ? 'Encoder queue ' + Math.round(pendingBytes / 1024) + ' KiB.' : ''}</p>}
-            {lastClose && <p className="text-xs text-red-700">Last drop: {lastClose}</p>}
-          </div>
-          <div className="border-t border-stone-200 pt-4 space-y-2">
-            <p className="text-xs font-bold uppercase tracking-wider">Public listening check</p>
-            {!PUBLIC_STREAM_URL ? <p className="text-xs text-amber-800">Station stream URL has not been set in Vercel yet.</p> : (
-              <>
-                <p className="text-sm">
-                  {publicStatus === 'available' ? '✓ Stream endpoint responds with HTTP 200 (audio playback still needs a listening check).'
-                    : publicStatus === 'checking' ? 'Checking the public stream…'
-                    : publicStatus === 'unavailable' ? 'No live stream confirmed. If the DJ is connected, retry in a few seconds.'
-                    : 'When live, the test will check that Icecast is available.'}
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  <button type="button" onClick={() => void checkPublicStream()} disabled={publicStatus === 'checking'}
-                    className="border border-stone-400 px-4 py-2 text-xs uppercase font-bold disabled:opacity-50">Recheck stream</button>
-                  <a href={PUBLIC_STREAM_URL} target="_blank" rel="noopener noreferrer"
-                    className="border border-stone-400 px-4 py-2 text-xs uppercase font-bold">Open listener</a>
-                </div>
-              </>
+            {state === 'error' && <p className="text-sm text-red-700">{message}</p>}
+            {state === 'testing' && <p className="text-xs text-muted">Checking input…</p>}
+            {state === 'sending' && (
+              <p className="text-xs text-muted">
+                {/slow|recover|interrupted/i.test(message) ? 'Connection is unstable. Check your internet.' : 'Keep this tab open during your set.'}
+              </p>
+            )}
+            {state === 'sending' && publicStatus === 'unavailable' && (
+              <p className="text-xs text-red-700">Listener stream not confirmed. Check from another device.</p>
             )}
           </div>
-        </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {PUBLIC_STREAM_URL && (
+              <a
+                href={PUBLIC_STREAM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="border border-ink/40 px-4 py-2.5 text-xs font-bold uppercase tracking-[0.12em] text-ink transition-colors hover:border-ink"
+              >
+                Open listener
+              </a>
+            )}
+            <details className="min-w-0 text-xs text-muted">
+              <summary className="cursor-pointer underline underline-offset-4">Connection details</summary>
+              <div className="mt-3 space-y-2 border-l border-ink/20 pl-3">
+                <p>{message}</p>
+                {sourceNote && <p>{sourceNote}</p>}
+                {state === 'sending' && sent > 0 && (
+                  <p>
+                    {(sent / 1024 / 1024).toFixed(1)} MB sent
+                    {latencyMs !== null ? ' · ' + latencyMs + ' ms round trip' : ''}
+                    {pendingBytes !== null ? ' · ' + Math.round(pendingBytes / 1024) + ' KiB queued' : ''}
+                  </p>
+                )}
+                {lastClose && <p className="text-red-700">Last disconnect: {lastClose}</p>}
+                <p>
+                  {publicStatus === 'available' ? 'Station stream responding.'
+                    : publicStatus === 'checking' ? 'Checking station stream…'
+                    : publicStatus === 'unavailable' ? 'Station stream not confirmed.'
+                    : 'Use a second device to check what listeners hear.'}
+                </p>
+                {PUBLIC_STREAM_URL && (
+                  <button
+                    type="button"
+                    onClick={() => void checkPublicStream()}
+                    disabled={publicStatus === 'checking'}
+                    className="border border-ink/30 px-3 py-2 font-bold uppercase tracking-wider disabled:opacity-50"
+                  >
+                    Check stream
+                  </button>
+                )}
+              </div>
+            </details>
+          </div>
+        </section>
       </div>
-      <p className="text-xs text-muted leading-5">Keep the browser open throughout the broadcast and verify on another device. Wired internet is preferred for a live set. Never share the private invitation publicly.</p>
     </section>
   );
 }
