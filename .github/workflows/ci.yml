@@ -37,8 +37,8 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: Browser broadcast verifier unit tests
-        run: pnpm --filter @virgo-boys-radio/api exec tsx --test ../web/src/lib/broadcastVerifier.test.ts
+      - name: Browser broadcast verifier and Opus uplink tests
+        run: pnpm --filter @virgo-boys-radio/api exec tsx --test ../web/src/lib/broadcastVerifier.test.ts ../web/src/lib/opusUplink.test.ts
 
       - name: Build API
         run: pnpm --filter @virgo-boys-radio/api build
