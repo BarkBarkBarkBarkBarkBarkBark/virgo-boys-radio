@@ -6,12 +6,14 @@ declare module 'fastify' {
   }
 }
 
-/**
- * Auth is currently disabled — all admin routes are open.
- * Re-enable by restoring the session check below.
- */
-export async function requireAdmin(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
-  request.adminUsername = request.session?.admin?.username ?? 'admin';
+/** All admin endpoints require a verified session, including DJ invitations. */
+export async function requireAdmin(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const admin = request.session?.admin;
+  if (!admin?.username) {
+    reply.status(401).send({ error: 'Admin sign-in required' });
+    return;
+  }
+  request.adminUsername = admin.username;
 }
 
 declare module 'fastify' {

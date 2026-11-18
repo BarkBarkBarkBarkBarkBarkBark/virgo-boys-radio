@@ -2,7 +2,7 @@ FROM node:20-alpine
 
 # Icecast and Caddy run beside the existing Fastify API on the same Fly Machine.
 # Packages must be in the image, never installed interactively into the VM.
-RUN apk add --no-cache icecast caddy gettext
+RUN apk add --no-cache icecast caddy gettext ffmpeg
 
 RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
 

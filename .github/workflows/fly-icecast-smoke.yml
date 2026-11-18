@@ -65,6 +65,24 @@ jobs:
             exit 1
           fi
 
+      - name: Verify FFmpeg can publish 320 kbps stereo to Icecast
+        run: |
+          set -euo pipefail
+          # Synthetic 1 kHz tone, not music; exercise the exact source upload path.
+          docker exec -d virgo-icecast-test sh -c 'ffmpeg -nostdin -hide_banner -loglevel error -re -f lavfi -i sine=frequency=1000:sample_rate=48000 -t 20 -ac 2 -c:a libmp3lame -b:a 320k -content_type audio/mpeg -f mp3 -method PUT icecast://source:0123456789abcdef0123456789abcdef@127.0.0.1:8000/radio.mp3 >/tmp/dj-test-ffmpeg.log 2>&1'
+          code=""
+          for i in $(seq 1 12); do
+            code="$(curl -sS --max-time 2 -o /dev/null -w '%{http_code}' http://127.0.0.1:13001/radio.mp3 || true)"
+            if [[ "$code" == 200 ]]; then break; fi
+            sleep 1
+          done
+          if [[ "$code" != 200 ]]; then
+            echo "Expected Icecast HTTP 200 while FFmpeg publishes; got $code"
+            docker exec virgo-icecast-test sh -c 'cat /tmp/dj-test-ffmpeg.log || true'
+            exit 1
+          fi
+          echo "FFmpeg -> Icecast -> Caddy -> HTTP listener returned 200"
+
       - name: Container logs on failure
         if: failure()
         run: |
