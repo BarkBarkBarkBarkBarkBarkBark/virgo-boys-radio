@@ -10,6 +10,7 @@ type Pipeline = {
   bassChangeDb: number;
   trebleChangeDb: number;
   stereoDifferenceDb: number;
+  bassPhaseErrorDeg: number;
   peakDbfs: number;
   clippedPercent: number;
   findings: string[];
@@ -45,6 +46,7 @@ function PipelineReport({ data, audio }: { data: Pipeline; audio: string }) {
           ['56 Hz sub-bass change', signedDb(data.bassChangeDb)],
           ['7.2 kHz treble change', signedDb(data.trebleChangeDb)],
           ['Stereo gain mismatch', data.stereoDifferenceDb.toFixed(2) + ' dB'],
+          ['56 Hz phase/polarity error', data.bassPhaseErrorDeg.toFixed(1) + '°'],
           ['Peak / clipped', data.peakDbfs.toFixed(2) + ' dBFS / ' + data.clippedPercent.toFixed(2) + '%'],
         ].map(([name, value]) => (
           <div key={name}><dt className="text-muted">{name}</dt><dd className="font-mono font-semibold mt-1">{value}</dd></div>
