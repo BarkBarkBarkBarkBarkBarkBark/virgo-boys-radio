@@ -1,12 +1,8 @@
 import { PublicShell } from '@/components/PublicShell';
-import { AdminConsole } from '@/components/AdminConsole';
+import { OperationsDashboard } from '@/components/OperationsDashboard';
 
-export const metadata = { title: 'Admin · Virgo Boys Radio' };
+export const metadata = { title: 'Broadcast monitor · Virgo Boys Radio', robots: { index: false, follow: false } };
 
 export default function AdminPage() {
-  return (
-    <PublicShell>
-      <AdminConsole />
-    </PublicShell>
-  );
+  return <PublicShell><OperationsDashboard /></PublicShell>;
 }
