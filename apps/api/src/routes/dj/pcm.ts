@@ -122,7 +122,7 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
         // Read stderr so the child cannot block. Never log raw stderr because
         // ffmpeg may echo the source-password URL in error messages.
         encoder.stderr.on('data', () => undefined);
-        send({ type: 'ready', message: 'Secure connection established; sending stereo audio to the station.' });
+        send({ type: 'ready', message: 'Secure connection established; sending stereo audio to the station.', supportsClientDiagnostics: 1 });
         return;
       }
 
