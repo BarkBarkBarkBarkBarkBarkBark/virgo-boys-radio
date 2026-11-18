@@ -65,6 +65,8 @@ export function PlayerBar() {
       className="fixed bottom-0 inset-x-0 z-50 min-h-[72px] grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-2 sm:px-6"
       style={{
         background: '#ffffff',
+        minHeight: 'var(--player-bar-height)',
+        paddingBottom: 'calc(8px + env(safe-area-inset-bottom, 0px))',
         borderTop: '1px solid #000',
         boxShadow: borderGlow !== 'none' ? borderGlow : '0 -1px 0 rgba(0,0,0,0.06)',
       }}
