@@ -65,7 +65,7 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
       if (!authorized) socket.close(1008, 'Authentication timeout');
     }, AUTH_TIMEOUT_MS);
 
-    socket.on('message', (data, isBinary) => {
+    socket.on('message', (data: Buffer, isBinary: boolean) => {
       if (stopped) return;
       if (!authorized) {
         if (isBinary) {
