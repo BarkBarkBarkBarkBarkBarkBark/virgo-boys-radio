@@ -1,36 +1,23 @@
 import Link from 'next/link';
 
-const NAV_ITEMS = [
-  { label: 'Home', href: '/' },
-  { label: 'Events', href: '/events' },
-  { label: 'Artists', href: '/artists' },
-  { label: 'Broadcast', href: '/stream' },
-];
-
 export function Header() {
   return (
-    <header className="px-6 py-5 border-b border-stone-200">
-      <div className="max-w-7xl mx-auto flex flex-wrap items-center gap-y-3 gap-x-6 justify-between">
-        <Link href="/" className="group">
-          <p className="text-lg font-bold tracking-[0.16em] text-ink uppercase leading-tight group-hover:text-accent-red transition-colors">
-            VIRGO BOYS RADIO
-          </p>
+    <header className="shrink-0 border-b border-ink/10 px-4 py-4 sm:px-6 sm:py-5">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <Link
+          href="/"
+          className="text-sm font-bold uppercase leading-tight tracking-[0.16em] text-ink transition-colors hover:text-accent-red sm:text-lg"
+        >
+          VIRGO BOYS RADIO
         </Link>
 
-        <p className="hidden md:block text-xs text-muted tracking-[0.18em] uppercase">
-          Independent underground radio
-        </p>
-
         <nav className="flex items-center gap-1" aria-label="Site navigation">
-          {NAV_ITEMS.map(({ label, href }) => (
-            <Link
-              key={label}
-              href={href}
-              className="px-3 py-1.5 text-[11px] tracking-widest uppercase text-ink hover:text-accent-red border border-transparent hover:border-accent-red/40 transition-colors"
-            >
-              {label}
-            </Link>
-          ))}
+          <Link
+            href="/events"
+            className="px-2 py-2 text-[11px] uppercase tracking-[0.2em] text-ink transition-colors hover:text-accent-red sm:px-3"
+          >
+            Events
+          </Link>
         </nav>
       </div>
     </header>

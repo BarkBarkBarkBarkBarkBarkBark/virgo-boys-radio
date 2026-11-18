@@ -32,7 +32,6 @@ export default function AdminLoginPage() {
     <div className="max-w-md mx-auto bg-white/85 border border-stone-300 p-7 space-y-5">
       <div><p className="text-xs tracking-[0.25em] uppercase text-muted">Virgo Boys Radio / Private</p>
         <h1 className="text-3xl font-bold mt-2">Station admin</h1>
-        <p className="text-sm mt-2 text-muted">Password-protected broadcast health and DJ access controls.</p>
       </div>
       <form onSubmit={(e) => void signIn(e)} className="space-y-3">
         <label className="block text-sm font-semibold" htmlFor="admin-password">Password</label>
@@ -45,7 +44,6 @@ export default function AdminLoginPage() {
         </button>
         {message && <p role="alert" className="text-sm text-red-700">{message}</p>}
       </form>
-      <p className="text-xs text-muted">Sessions expire after eight hours. For a public radio service, use a stronger password than a short memorable word before inviting external guests.</p>
     </div>
   </PublicShell>;
 }

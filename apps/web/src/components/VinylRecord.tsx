@@ -25,13 +25,13 @@ function AntennaIcon() {
   );
 }
 
-const GROOVE_INSETS = [20, 36, 52, 70, 88, 106, 124, 142];
+const GROOVE_INSETS = [5, 9, 13, 17, 21, 25, 29, 33];
 
 export function VinylRecord({
   isLive = false,
   isPlaying = false,
   amplitude = 0,
-  sizeClassName = 'h-[22rem] w-[22rem] sm:h-[28rem] sm:w-[28rem]',
+  sizeClassName = 'aspect-square w-full',
 }: VinylRecordProps) {
   // Sound-reactive glow: dark inky shadow that breathes with the music
   const glowRadius  = Math.round(30 + amplitude * 80);
@@ -56,7 +56,7 @@ export function VinylRecord({
       />
 
       <div
-        className="relative flex h-full w-full items-center justify-center rounded-full border border-black/10 shadow-[0_30px_80px_rgba(0,0,0,0.28)]"
+        className="vinyl-motion relative flex h-full w-full items-center justify-center rounded-full border border-black/10"
         style={{
           background:
             'radial-gradient(circle at 35% 28%, rgba(255,255,255,0.09) 0%, transparent 28%), radial-gradient(circle, #171717 0%, #0b0b0d 55%, #000 100%)',
@@ -71,13 +71,13 @@ export function VinylRecord({
           <div
             key={inset}
             className="absolute rounded-full border border-white/[0.05]"
-            style={{ inset }}
+            style={{ inset: `${inset}%` }}
           />
         ))}
 
         <div className="absolute inset-[10%] rounded-full border border-white/[0.04]" />
 
-        <div className="relative z-10 flex h-28 w-28 items-center justify-center rounded-full border border-black/10 bg-accent-red text-paper shadow-inner sm:h-36 sm:w-36">
+        <div className="relative z-10 flex h-[33%] w-[33%] items-center justify-center rounded-full border border-black/10 bg-accent-red text-paper shadow-inner">
           <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden="true">
             <defs>
               <path id="outerLabelPath" d="M 50,50 m -38,0 a 38,38 0 1,1 76,0 a 38,38 0 1,1 -76,0" />

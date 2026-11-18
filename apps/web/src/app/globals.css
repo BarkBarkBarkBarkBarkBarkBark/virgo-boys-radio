@@ -8,6 +8,14 @@
   }
 }
 
+:root {
+  --player-bar-height: calc(72px + env(safe-area-inset-bottom, 0px));
+}
+
+.home-stage {
+  min-height: calc(100dvh - var(--player-bar-height));
+}
+
 /* ─── Paper grain texture overlay ───────────────────────────────────────── */
 body::after {
   content: '';
@@ -84,4 +92,25 @@ body::after {
   animation: cursorBlink 1.1s step-end infinite;
   margin-left: 1px;
   opacity: 0.6;
+}
+
+/* Keep the record within both viewport width and available screen height. */
+.home-vinyl {
+  width: min(72vw, 35dvh, 27rem);
+}
+
+@media (min-width: 640px) {
+  .home-vinyl {
+    width: min(70vw, 44dvh, 28rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vinyl-motion,
+  .ink-halo,
+  .candle-card,
+  .candle-card-alt,
+  .accent-flicker {
+    animation: none !important;
+  }
 }

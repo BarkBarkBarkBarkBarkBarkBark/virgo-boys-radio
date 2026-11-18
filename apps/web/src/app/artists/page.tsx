@@ -31,21 +31,11 @@ export default async function ArtistsPage() {
         <div className="space-y-2">
           <p className="text-[0.6rem] uppercase tracking-[0.45em] text-muted font-mono">Virgo Boys Radio</p>
           <h1 className="text-4xl font-bold uppercase tracking-[0.15em] text-ink">Artists</h1>
-          <p className="text-sm text-muted max-w-2xl">
-            Virgo Boys Radio showcases independent producers, DJs, and underground artists.
-            Tune in for original music, live sets, and sounds you won&apos;t hear on the usual dial.
-          </p>
+
         </div>
 
-        {/* Featured section */}
-        <div className="border border-ink/12 bg-white/75 p-8 space-y-4">
-          <h2 className="text-xl font-bold uppercase tracking-[0.12em] text-ink">Featured Artists</h2>
-          {artists.length === 0 ? (
-            <p className="text-sm text-muted">
-              Artist profiles are coming soon. In the meantime, tune in to discover who&apos;s on rotation.
-            </p>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {artists.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {artists.map((artist) => {
                 const links = (() => {
                   try { return JSON.parse(artist.links_json) as { label: string; url: string }[]; } catch { return []; }
@@ -80,31 +70,10 @@ export default async function ArtistsPage() {
                   </article>
                 );
               })}
-            </div>
-          )}
-        </div>
-
-        {/* Submit section */}
-        <div className="border border-ink/12 bg-white/75 p-8 space-y-4">
-          <h2 className="text-xl font-bold uppercase tracking-[0.12em] text-ink">Submit Your Music</h2>
-          <p className="text-sm text-muted leading-7 max-w-2xl">
-            Producer, DJ, or independent artist? Share your demos, original tracks, or mixes with our team.
-            We&apos;re building a home for music worth hearing.
-          </p>
-          <div className="grid sm:grid-cols-2 gap-4 pt-2">
-            {[
-              { label: 'Format', value: 'MP3, WAV, FLAC' },
-              { label: 'Genre', value: 'Any — we\'re freeform' },
-              { label: 'Response', value: 'As programming allows' },
-              { label: 'Airplay', value: 'Curated selection' },
-            ].map(({ label, value }) => (
-              <div key={label} className="border border-ink/10 p-4">
-                <p className="text-[0.6rem] uppercase tracking-[0.35em] text-muted font-mono">{label}</p>
-                <p className="mt-1 text-sm font-semibold text-ink">{value}</p>
-              </div>
-            ))}
           </div>
-        </div>
+        ) : (
+          <p className="text-sm text-muted">Hear who's playing. <a href="/" className="font-semibold text-ink underline underline-offset-4">Listen to the station</a>.</p>
+        )}
       </div>
     </PublicShell>
   );
