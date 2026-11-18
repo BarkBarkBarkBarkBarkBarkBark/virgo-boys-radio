@@ -85,3 +85,24 @@ body::after {
   margin-left: 1px;
   opacity: 0.6;
 }
+
+/* Keep the record within both viewport width and available screen height. */
+.home-vinyl {
+  width: min(72vw, 35dvh, 27rem);
+}
+
+@media (min-width: 640px) {
+  .home-vinyl {
+    width: min(70vw, 44dvh, 28rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vinyl-motion,
+  .ink-halo,
+  .candle-card,
+  .candle-card-alt,
+  .accent-flicker {
+    animation: none !important;
+  }
+}
