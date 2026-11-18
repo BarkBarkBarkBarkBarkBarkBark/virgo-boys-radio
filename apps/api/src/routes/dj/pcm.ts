@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyPluginAsync } from 'fastify';
 import { endDjMetrics, noteDjClientDiagnostics, noteDjFrame, noteDjHeartbeat, startDjMetrics, verifyDjCredential } from '../../services/djOps.js';
+import { recordConnectivity, type ConnectivityInput } from '../../services/stationConnectivity.js';
 
 // Browser audio is 48 kHz, stereo, 16-bit PCM sent as binary WebSocket frames.
 // The server owns the Icecast source password; it is NEVER sent to the browser.
@@ -43,6 +44,13 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
     let lastFeedback = Date.now();
     let sessionId: string | null = null;
     let disconnectReason = 'socket_disconnected';
+    let diagnosticAt = 0;
+    const noteConnectivity = (input: ConnectivityInput) => {
+      // Observability must never interrupt the on-air audio pipeline, even
+      // during database contention or a full volume.
+      try { recordConnectivity(input, request.ip); }
+      catch { fastify.log.warn('DJ connectivity telemetry unavailable'); }
+    };
 
     const send = (message: Record<string, string | number>) => {
       if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message));
@@ -52,7 +60,13 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
       stopped = true;
       clearTimeout(authTimer);
       if (currentBroadcaster === socket) currentBroadcaster = null;
-      if (sessionId) endDjMetrics(sessionId, reason, closeCode);
+      if (sessionId) {
+        noteConnectivity({
+          clientId: sessionId.replace(/-/g, ''), role: 'broadcaster', event: 'broadcast_disconnected',
+          phase: 'stopped', details: (reason + ' code ' + (closeCode ?? 'unknown')).slice(0, 150),
+        });
+        endDjMetrics(sessionId, reason, closeCode);
+      }
       if (encoder) {
         encoder.stdin.destroy();
         encoder.kill('SIGTERM');
@@ -114,6 +128,10 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
         ], { stdio: ['pipe', 'pipe', 'pipe'] });
         encoder.stdout.resume();
         sessionId = startDjMetrics(invite?.label ?? 'Legacy invited DJ', encoder.pid ?? null);
+        noteConnectivity({
+          clientId: sessionId.replace(/-/g, ''), role: 'broadcaster', event: 'broadcast_connected',
+          phase: 'playing', details: 'Stereo PCM 48kHz uplink; FFmpeg MP3 source started',
+        });
 
         encoder.on('error', () => fail('Station encoder could not be started.', 'ffmpeg_spawn_error'));
         encoder.on('exit', (code) => {
@@ -121,21 +139,48 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
         });
         // Read stderr so the child cannot block. Never log raw stderr because
         // ffmpeg may echo the source-password URL in error messages.
-        encoder.stderr.on('data', () => undefined);
+        encoder.stderr.on('data', (chunk: Buffer) => {
+          // Classify failures without recording stderr: FFmpeg may print
+          // an Icecast URL containing the source password.
+          const text = chunk.toString('utf8').toLowerCase();
+          const category = text.includes('broken pipe') ? 'broken pipe'
+            : text.includes('connection refused') ? 'connection refused'
+            : text.includes('401') ? 'source authorization failed'
+            : text.includes('resource temporarily unavailable') ? 'resource unavailable'
+            : 'encoder reported an error';
+          if (sessionId) noteConnectivity({
+            clientId: sessionId.replace(/-/g, ''), role: 'broadcaster',
+            event: 'error', phase: 'error', details: category,
+          });
+        });
         send({ type: 'ready', message: 'Secure connection established; sending stereo audio to the station.', supportsClientDiagnostics: 1 });
         return;
       }
 
       if (!isBinary) {
         try {
-          const packet = JSON.parse(data.toString()) as { type?: string; clientTime?: number; droppedFrames?: number; bufferedBytes?: number };
+          const packet = JSON.parse(data.toString()) as { type?: string; clientTime?: number; droppedFrames?: number; bufferedBytes?: number; peakBufferedBytes?: number; congestedMs?: number };
           if (packet.type === 'heartbeat') {
             if (sessionId) noteDjHeartbeat(sessionId);
             send({ type: 'heartbeat', serverTime: Date.now(), clientTime: Number(packet.clientTime) || 0 });
             return;
           }
           if (packet.type === 'client_diagnostics') {
-            if (sessionId) noteDjClientDiagnostics(sessionId, packet.droppedFrames ?? -1, packet.bufferedBytes ?? -1);
+            if (sessionId) {
+              noteDjClientDiagnostics(sessionId, packet.droppedFrames ?? -1, packet.bufferedBytes ?? -1);
+              if (Date.now() - diagnosticAt >= 4500) {
+                diagnosticAt = Date.now();
+                const buffered = packet.bufferedBytes ?? 0;
+                noteConnectivity({
+                  clientId: sessionId.replace(/-/g, ''), role: 'broadcaster',
+                  event: buffered >= 384 * 1024 ? 'broadcast_congestion' : 'broadcast_health',
+                  phase: buffered >= 384 * 1024 ? 'buffering' : 'playing',
+                  queueBytes: buffered, droppedFrames: packet.droppedFrames ?? 0,
+                  details: 'Peak queue ' + Math.round((packet.peakBufferedBytes ?? buffered) / 1024) +
+                    ' KiB; congestion ' + Math.max(0, Math.round(packet.congestedMs ?? 0)) + 'ms',
+                });
+              }
+            }
             return;
           }
         } catch { /* Malformed control frame. */ }

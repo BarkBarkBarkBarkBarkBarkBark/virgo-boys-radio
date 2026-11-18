@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { createDjInvite, getDjMetrics, listDjInvites, revokeDjInvite } from '../../services/djOps.js';
+import { getConnectivityClients, getConnectivityEvents, getStreamAccessHistory, getIcecastClientSnapshot, recordConnectivity, type ConnectivityInput } from '../../services/stationConnectivity.js';
 
 const Login = z.object({ password: z.string().min(1).max(150) });
 const Invite = z.object({ label: z.string().max(70).default('Guest DJ'), hours: z.number().int().min(1).max(168).default(24) });
@@ -59,6 +60,36 @@ const opsRoute: FastifyPluginAsync = async (fastify) => {
     reply.header('Cache-Control', 'no-store');
     return reply.send({ ...getDjMetrics(), icecast: await readIcecastStatus() });
   });
+  fastify.get('/ops/connectivity', { preHandler: requireOps }, async (request, reply) => {
+    reply.header('Cache-Control', 'private, no-store');
+    const query = request.query as { clientId?: string; limit?: string };
+    const clientId = typeof query.clientId === 'string' && /^[a-zA-Z0-9_-]{8,75}$/.test(query.clientId) ? query.clientId : '';
+    return reply.send({
+      generatedAt: new Date().toISOString(),
+      clients: getConnectivityClients(),
+      events: getConnectivityEvents(Number(query.limit) || 220, clientId),
+      streamRequests: getStreamAccessHistory(),
+      icecastClients: await getIcecastClientSnapshot(),
+      limitations: 'Live browser statuses use recent heartbeats; Caddy access entries appear when streaming HTTP connections close. IPs can represent shared NATs or proxies.',
+    });
+  });
+
+  fastify.post('/ops/telemetry', {
+    preHandler: requireOps,
+    config: { rateLimit: { max: 1500, timeWindow: '1 minute' } },
+  }, async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    const body = request.body as (ConnectivityInput & { observedIp?: string }) | null;
+    if (!body || typeof body !== 'object' || typeof body.clientId !== 'string' ||
+        typeof body.event !== 'string' || typeof body.role !== 'string') {
+      return reply.code(400).send({ error: 'Invalid telemetry packet' });
+    }
+    if (!recordConnectivity(body, body.observedIp ?? 'unknown')) {
+      return reply.code(400).send({ error: 'Unsupported telemetry event' });
+    }
+    return reply.code(204).send();
+  });
+
   fastify.get('/ops/invites', { preHandler: requireOps }, async (_request, reply) => {
     reply.header('Cache-Control', 'no-store');
     return reply.send({ invites: listDjInvites() });

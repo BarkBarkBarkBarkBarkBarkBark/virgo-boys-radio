@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_BASE } from '@/lib/api';
 import { PUBLIC_STREAM_URL } from '@/lib/streamConfig';
 import { startBroadcastVerifier, type BroadcastVerification, type BroadcastVerifier } from '@/lib/broadcastVerifier';
+import { sendStationTelemetry } from '@/lib/stationTelemetry';
 
 type AudioSource = 'tone' | 'tab' | 'interface';
 type BoothState = 'idle' | 'testing' | 'connecting' | 'sending' | 'error';
@@ -43,6 +44,7 @@ export function PrivateDjBooth() {
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const verifierRef = useRef<BroadcastVerifier | null>(null);
+  const lastMonitorLogRef = useRef({ phase: '', at: 0 });
 
   const refreshDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return;
@@ -282,6 +284,7 @@ export function PrivateDjBooth() {
       let lastDiagnostic = 0;
       let lastWarn = 0;
       let serverSupportsDiagnostics = false;
+      let peakBufferedBytes = 0;
 
       // Deliver a current diagnostic over the socket when possible. Messages
       // are deliberately small, sent at most every five seconds.
@@ -292,13 +295,17 @@ export function PrivateDjBooth() {
         const now = Date.now();
         if (now - lastDiagnostic < 5000) return;
         lastDiagnostic = now;
-        socket.send(JSON.stringify({ type: 'client_diagnostics', droppedFrames, bufferedBytes }));
+        socket.send(JSON.stringify({
+          type: 'client_diagnostics', droppedFrames, bufferedBytes, peakBufferedBytes,
+          congestedMs: congestionStarted ? now - congestionStarted : 0,
+        }));
       };
 
       worklet.port.onmessage = (frame) => {
         const active = wsRef.current;
         if (!active || active.readyState !== WebSocket.OPEN || stateRef.current !== 'sending') return;
         const buffered = active.bufferedAmount;
+        peakBufferedBytes = Math.max(peakBufferedBytes, buffered);
         if (buffered >= SOFT_BUFFER_BYTES) {
           // Live audio must not accumulate multiple seconds of stale audio.
           // Drop delayed frames temporarily instead of instantly ending the set.
@@ -343,6 +350,7 @@ export function PrivateDjBooth() {
               if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'heartbeat', clientTime: Date.now() }));
             }, 5000);
             congestionStarted = 0;
+            peakBufferedBytes = 0;
             retries = 0;
             setState('sending');
             stateRef.current = 'sending';
@@ -361,7 +369,18 @@ export function PrivateDjBooth() {
                 sourceRight: rightMeter,
                 streamUrl: PUBLIC_STREAM_URL,
                 onUpdate: (result) => {
-                  if (stateRef.current === 'sending') setVerification(result);
+                  if (stateRef.current !== 'sending') return;
+                  setVerification(result);
+                  const now = Date.now();
+                  if (result.phase !== lastMonitorLogRef.current.phase ||
+                      now - lastMonitorLogRef.current.at > 20000) {
+                    lastMonitorLogRef.current = { phase: result.phase, at: now };
+                    sendStationTelemetry('monitor', 'verification', {
+                      phase: result.phase, details: result.label,
+                      ...(result.delayMs === undefined ? {} : { delayMs: result.delayMs }),
+                      ...(result.matchPercent === undefined ? {} : { matchPercent: result.matchPercent }),
+                    });
+                  }
                 },
               });
               void checkPublicStream();
@@ -389,6 +408,7 @@ export function PrivateDjBooth() {
           if (heartbeatRef.current) clearInterval(heartbeatRef.current);
           heartbeatRef.current = null;
           congestionStarted = 0;
+          peakBufferedBytes = 0;
           serverSupportsDiagnostics = false;
           const reason = 'WebSocket ' + event.code + (event.reason ? ' · ' + event.reason : '');
           verifierRef.current?.stop();

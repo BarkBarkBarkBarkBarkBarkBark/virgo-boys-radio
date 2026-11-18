@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { ConnectivityLab } from '@/components/ConnectivityLab';
 
 type Live = {
   id: string; label: string; startedAt: string; uptimeSeconds: number; bytesReceived: number;
@@ -172,6 +173,8 @@ export function OperationsDashboard() {
           ) : <p className="text-sm text-muted">No completed sessions recorded yet. These records persist in the Fly SQLite database after deployment.</p>}
         </div>
       </div>
+
+      <ConnectivityLab />
 
       <div className="border border-stone-300 bg-white/85 p-5 space-y-5">
         <div><h2 className="text-xl font-bold">DJ invitations</h2>

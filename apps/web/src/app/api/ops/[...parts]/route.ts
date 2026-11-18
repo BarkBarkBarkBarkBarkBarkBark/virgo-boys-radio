@@ -18,8 +18,9 @@ async function proxy(request: NextRequest, context: Context, method: 'GET' | 'PO
   }
   const parts = (await context.params).parts ?? [];
   const path = parts.join('/');
+  const suffix = path === 'connectivity' ? request.nextUrl.search : '';
   const permitted =
-    (method === 'GET' && (path === 'metrics' || path === 'invites')) ||
+    (method === 'GET' && (path === 'metrics' || path === 'invites' || path === 'connectivity')) ||
     (method === 'POST' && path === 'invites') ||
     (method === 'POST' && /^invites\/[a-f0-9-]{36}\/revoke$/i.test(path));
   if (!permitted) return NextResponse.json({ error: 'Unknown operation' }, { status: 404 });
@@ -34,7 +35,7 @@ async function proxy(request: NextRequest, context: Context, method: 'GET' | 'PO
       body = await request.text();
       if (body.length > 2048) return NextResponse.json({ error: 'Request too large' }, { status: 413 });
     }
-    const upstream = await fetch(base.replace(/\/$/, '') + '/ops/' + path, {
+    const upstream = await fetch(base.replace(/\/$/, '') + '/ops/' + path + suffix, {
       method,
       headers: { 'x-station-ops-key': key, ...(body ? { 'Content-Type': 'application/json' } : {}) },
       ...(body ? { body } : {}),
