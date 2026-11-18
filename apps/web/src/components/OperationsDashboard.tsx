@@ -6,6 +6,7 @@ type Live = {
   id: string; label: string; startedAt: string; uptimeSeconds: number; bytesReceived: number;
   framesReceived: number; inputKbps: number; lastAudioAgeMs: number;
   lastHeartbeatAgeMs: number; ffmpegPid: number | null; encoderPendingBytes: number;
+  browserBufferedBytes: number; browserDroppedFrames: number;
 };
 type Drop = {
   id: string; label: string; startedAt: string; endedAt: string;
@@ -145,13 +146,15 @@ export function OperationsDashboard() {
               ['Last browser heartbeat', live ? live.lastHeartbeatAgeMs + ' ms ago' : '—'],
               ['FFmpeg encoder PID', live?.ffmpegPid?.toString() ?? '—'],
               ['FFmpeg input queue', live ? Math.round(live.encoderPendingBytes / 1024) + ' KiB' : '—'],
+              ['Browser upload backlog', live ? Math.round(live.browserBufferedBytes / 1024) + ' KiB' : '—'],
+              ['Skipped late audio frames', live ? live.browserDroppedFrames.toString() : '—'],
               ['Fly API process memory', snapshot?.process ? snapshot.process.rssMB + ' MB' : '—'],
               ['API process uptime', snapshot?.process ? formatTime(snapshot.process.uptimeSeconds) : '—'],
             ].map(([heading, value]) => (
               <div key={heading}><dt className="text-xs text-muted">{heading}</dt><dd className="font-semibold">{value}</dd></div>
             ))}
           </dl>
-          <p className="text-xs text-muted">If audio age increases while the socket stays connected, the browser stopped delivering audio. If the FFmpeg queue grows, encoding or network transfer may be blocked. A 1006 WebSocket close usually points to network or process interruption rather than a deliberate Stop.</p>
+          <p className="text-xs text-muted">If the browser backlog increases, its uplink is congested; it temporarily skips late audio rather than instantly ending the set. A 4008 close identifies sustained upload congestion. A 1000 close means the tab or operator intentionally stopped. A 1005 close has no status code and is ambiguous.</p>
         </div>
 
         <div className="border border-stone-300 bg-white/85 p-5 space-y-3">
