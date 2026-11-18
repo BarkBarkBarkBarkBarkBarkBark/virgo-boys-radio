@@ -31,7 +31,7 @@ Each is compared to the generated input using middle-of-signal 250-ms windows. T
 - Overall RMS gain difference in dB
 - Excess level variation ("pumping") of a steady signal in dB
 - Amplitude deviation at 56 Hz and 7.2 kHz
-- Stereo channel differential gain
+- Stereo channel differential gain and relative 56 Hz sub-bass phase/polarity
 - Clipping fraction and output peak level
 
 The admin dashboard reports pass/warning thresholds, raw measurements, and a short playable MP3 reference for each pipeline.
