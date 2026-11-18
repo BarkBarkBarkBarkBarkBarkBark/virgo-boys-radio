@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_BASE } from '@/lib/api';
 
-type BoothState = 'idle' | 'connecting' | 'sending' | 'error';
+type BoothState = 'idle' | 'testing' | 'connecting' | 'sending' | 'error';
 type Meter = { left: number; right: number };
 
 export function PrivateDjBooth() {
@@ -20,6 +20,7 @@ export function PrivateDjBooth() {
   const streamRef = useRef<MediaStream | null>(null);
   const contextRef = useRef<AudioContext | null>(null);
   const meterTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const testTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshDevices = useCallback(async () => {
     if (!navigator.mediaDevices?.enumerateDevices) return;
@@ -46,6 +47,8 @@ export function PrivateDjBooth() {
     wsRef.current = null;
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) ws.close();
     if (meterTimerRef.current) clearInterval(meterTimerRef.current);
+    if (testTimerRef.current) clearTimeout(testTimerRef.current);
+    testTimerRef.current = null;
     meterTimerRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
@@ -62,8 +65,8 @@ export function PrivateDjBooth() {
     setMessage('Disconnected. Your audio is no longer being transmitted.');
   };
 
-  const connect = async () => {
-    if (!hasInvite || state === 'connecting' || state === 'sending') return;
+  const connect = async (testOnly = false) => {
+    if (!hasInvite || state === 'testing' || state === 'connecting' || state === 'sending') return;
     cleanup();
     setState('connecting');
     setMessage('Checking your audio interface…');
@@ -121,6 +124,17 @@ export function PrivateDjBooth() {
         }
         setMeter({ left, right });
       }, 150);
+
+      if (testOnly) {
+        setState('testing');
+        setMessage('Audio interface test: play a track and watch the L/R meters. Nothing is transmitted.');
+        testTimerRef.current = setTimeout(() => {
+          cleanup();
+          setState('idle');
+          setMessage('Input test complete. Press Go Live when ready.');
+        }, 5000);
+        return;
+      }
 
       const worklet = new AudioWorkletNode(context, 'virgo-pcm', {
         numberOfInputs: 1,
@@ -208,6 +222,11 @@ export function PrivateDjBooth() {
               {devices.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Audio input ' + d.deviceId.slice(0, 6)}</option>)}
             </select>
             <p className="text-xs text-muted mt-2">Give this page microphone permission when prompted, then choose your Scarlett, Steinberg or mixer interface. Keep gain below clipping.</p>
+            <button type="button" onClick={() => void connect(true)}
+              disabled={state === 'connecting' || state === 'testing' || state === 'sending'}
+              className="mt-4 border border-ink px-5 py-3 text-sm font-bold uppercase tracking-wide disabled:opacity-50">
+              {state === 'testing' ? 'Testing audio…' : 'Test audio without broadcasting'}
+            </button>
           </div>
 
           <div className="space-y-2">
@@ -231,7 +250,7 @@ export function PrivateDjBooth() {
               <button type="button" onClick={stop}
                 className="w-full rounded-lg bg-red-700 text-white py-5 font-bold uppercase tracking-[0.15em]">Stop broadcast</button>
             ) : (
-              <button type="button" onClick={() => void connect()} disabled={state === 'connecting'}
+              <button type="button" onClick={() => void connect(false)} disabled={state === 'connecting' || state === 'testing'}
                 className="w-full rounded-lg bg-ink text-white py-5 font-bold uppercase tracking-[0.15em] disabled:opacity-50">
                 {state === 'connecting' ? 'Connecting…' : 'Go live'}
               </button>
