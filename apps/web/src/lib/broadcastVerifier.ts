@@ -210,6 +210,8 @@ export function startBroadcastVerifier(options: {
   let goodMatches = 0;
   let previousDelay: number | null = null;
   let playbackStarted = false;
+  let monitorFailure: string | null = null;
+  let monitorStartedAt = performance.now();
 
   if (!streamUrl || !/^https:\/\//i.test(streamUrl)) {
     onUpdate({ phase: 'unavailable', label: 'Verification unavailable', detail: 'Public HTTPS stream is not configured.' });
@@ -250,19 +252,24 @@ export function startBroadcastVerifier(options: {
   };
   onUpdate(checking);
 
-  const onPlaying = () => { playbackStarted = true; };
+  const onPlaying = () => {
+    playbackStarted = true;
+    monitorFailure = null;
+  };
   const onError = () => {
-    if (!stopped) onUpdate({
+    if (stopped) return;
+    monitorFailure = 'The public stream could not be decoded. Use Retry to try again.';
+    onUpdate({
       phase: 'unavailable',
       label: 'Listener check unavailable',
-      detail: 'The public stream could not be decoded. Open Connection details to retry.',
+      detail: monitorFailure,
     });
   };
   audio.addEventListener('playing', onPlaying);
   audio.addEventListener('error', onError);
 
   const tick = () => {
-    if (stopped) return;
+    if (stopped || monitorFailure) return;
     const now = performance.now();
     if (context.state !== 'running') {
       onUpdate({ phase: 'checking', label: 'Verification paused', detail: 'Audio processing is suspended by the browser.' });
@@ -281,7 +288,13 @@ export function startBroadcastVerifier(options: {
     if (now - lastCheck < 1500) return;
     lastCheck = now;
     if (framesOut.length < WINDOW_SAMPLES) {
-      onUpdate(checking);
+      onUpdate(now - monitorStartedAt > 20_000
+        ? {
+            phase: 'warning',
+            label: 'Listener audio not confirmed',
+            detail: 'No usable audio was decoded from the public stream. Use Retry or check on another device.',
+          }
+        : checking);
       return;
     }
 
@@ -297,12 +310,14 @@ export function startBroadcastVerifier(options: {
       const returnedL = avgLevel(match.output, 'leftRms') > SILENCE_RMS;
       const returnedR = avgLevel(match.output, 'rightRms') > SILENCE_RMS;
       const channelMissing = (sourceLoudL && !returnedL) || (sourceLoudR && !returnedR);
+      const incompleteInput = !sourceLoudL || !sourceLoudR;
       const clippingRisk = averagePeak(match.output, 'leftPeak') > 0.12
         || averagePeak(match.output, 'rightPeak') > 0.12
         || averagePeak(match.input, 'leftPeak') > 0.12
         || averagePeak(match.input, 'rightPeak') > 0.12;
 
       const qualityWarning = channelMissing ? 'One stereo channel is missing.'
+        : incompleteInput ? 'Stereo input not confirmed. Check both channels.'
         : clippingRisk ? 'Signal is close to clipping.'
         : null;
       const result: BroadcastVerification = {
@@ -333,6 +348,8 @@ export function startBroadcastVerifier(options: {
   const interval = window.setInterval(tick, SAMPLE_PERIOD_MS);
   const retry = () => {
     if (stopped) return;
+    monitorFailure = null;
+    monitorStartedAt = performance.now();
     framesIn = [];
     framesOut = [];
     goodMatches = 0;
@@ -344,10 +361,12 @@ export function startBroadcastVerifier(options: {
     audio.src = streamUrl;
     audio.load();
     void audio.play().catch(() => {
-      if (!stopped) onUpdate({
+      if (stopped) return;
+      monitorFailure = 'The browser blocked silent playback. Tap Retry to enable monitoring.';
+      onUpdate({
         phase: 'unavailable',
         label: 'Tap to enable verification',
-        detail: 'The browser blocked silent playback. Use the Retry check button.',
+        detail: monitorFailure,
       });
     });
   };
