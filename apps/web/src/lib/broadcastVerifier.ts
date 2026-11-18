@@ -152,7 +152,7 @@ function makeSampler(context: AudioContext, left: AnalyserNode, right: AnalyserN
   const rightWaveform = new Float32Array(fftSize);
   const hzPerBin = context.sampleRate / fftSize;
 
-  const summarize = (analyser: AnalyserNode, spectrum: Float32Array, waveform: Float32Array) => {
+  const summarize = (\n    analyser: AnalyserNode,\n    spectrum: Parameters<AnalyserNode['getFloatFrequencyData']>[0],\n    waveform: Parameters<AnalyserNode['getFloatTimeDomainData']>[0],\n  ) => {
     analyser.getFloatFrequencyData(spectrum);
     analyser.getFloatTimeDomainData(waveform);
     let power = 0;
