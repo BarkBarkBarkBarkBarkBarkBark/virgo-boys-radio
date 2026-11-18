@@ -62,16 +62,16 @@ export function startOpusUplink(options: {
     if (recorder.state !== 'inactive') recorder.stop();
   };
 
-  const interrupt = (reason: string) => {
+  const interrupt = (reason: string, closeCode: 4008 | 4009 = 4008) => {
     if (stopped) return;
     onFailure(reason);
     stop();
     if (socket.readyState === WebSocket.OPEN) {
-      socket.close(4008, 'opus_uplink_queue_stalled');
+      socket.close(closeCode, closeCode === 4009 ? 'opus_encoder_failed' : 'opus_uplink_queue_stalled');
     }
   };
 
-  recorder.onerror = () => interrupt('Browser Opus encoder failed; reconnecting.');
+  recorder.onerror = () => interrupt('Browser Opus encoder failed; reconnecting.', 4009);
 
   recorder.ondataavailable = (event: BlobEvent) => {
     if (stopped || !event.data.size) return;
@@ -114,7 +114,7 @@ export function startOpusUplink(options: {
       // A WebM chunk is already compressed. It MUST be sent intact.
       socket.send(bytes);
       onBuffer(socket.bufferedAmount);
-    }).catch(() => interrupt('Could not send Opus audio; reconnecting.')).finally(() => {
+    }).catch(() => interrupt('Could not send Opus audio; reconnecting.', 4009)).finally(() => {
       pendingBlobs -= 1;
     });
   };
