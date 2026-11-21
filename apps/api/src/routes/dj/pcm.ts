@@ -10,6 +10,8 @@ import { negotiateDjAudioFormat, ffmpegInputArgs, validAudioFrame, audioFormatDe
 // The source password stays server-side; never return it to a browser.
 const MAX_PENDING_BYTES = 512 * 1024;
 const AUTH_TIMEOUT_MS = 10_000;
+// Recover a dead upload before Icecast's 30-second source timeout.
+const AUDIO_STALL_TIMEOUT_MS = 8_000;
 let currentBroadcaster: object | null = null;
 
 function isValidToken(supplied: string): boolean {
@@ -46,6 +48,8 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
     let sessionId: string | null = null;
     let disconnectReason = 'socket_disconnected';
     let diagnosticAt = 0;
+    let lastAudioAt = 0;
+    let audioWatchdog: ReturnType<typeof setInterval> | null = null;
     let audioFormat: DjAudioFormat = 'pcm_s16le';
     const noteConnectivity = (input: ConnectivityInput) => {
       // Observability must never interrupt the on-air audio pipeline, even
@@ -61,6 +65,7 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
       if (stopped) return;
       stopped = true;
       clearTimeout(authTimer);
+      if (audioWatchdog) { clearInterval(audioWatchdog); audioWatchdog = null; }
       if (currentBroadcaster === socket) currentBroadcaster = null;
       if (sessionId) {
         noteConnectivity({
@@ -124,6 +129,20 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
 
         authorized = true;
         clearTimeout(authTimer);
+        lastAudioAt = Date.now();
+        audioWatchdog = setInterval(() => {
+          if (stopped || !authorized || Date.now() - lastAudioAt < AUDIO_STALL_TIMEOUT_MS) return;
+          // The websocket may still exchange heartbeats even if the audio
+          // capture/encoder has died. Force a fresh media stream on reconnect.
+          disconnectReason = 'audio_input_stalled';
+          if (sessionId) noteConnectivity({
+            clientId: sessionId.replace(/-/g, ''), role: 'broadcaster',
+            event: 'error', phase: 'error', details: 'No incoming audio for 8 seconds',
+          });
+          socket.close(4008, 'audio_input_stalled');
+          cleanup('audio_input_stalled', 4008);
+        }, 2000);
+        audioWatchdog.unref?.();
         currentBroadcaster = socket;
         // ffmpeg is installed into the server image. Never invoke a shell or
         // include the password in logs, browser code or command output.
@@ -205,6 +224,7 @@ const djIngestRoute: FastifyPluginAsync = async (fastify) => {
         fail('Audio uplink is too slow. Stop playback and reconnect on a stronger network.', 'encoder_backpressure');
         return;
       }
+      lastAudioAt = Date.now();
       encoder.stdin.write(data);
       bytesReceived += data.length;
       if (sessionId) noteDjFrame(sessionId, data.length, encoder.stdin.writableLength);

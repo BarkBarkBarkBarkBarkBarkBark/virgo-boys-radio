@@ -473,6 +473,7 @@ function IcecastAudioProvider({ children }: { children: React.ReactNode }) {
   const retryTimer = useRef<number | null>(null);
   const stallTimer = useRef<number | null>(null);
   const attempts = useRef(0);
+  const lastProgress = useRef({ time: 0, at: 0 });
   const [enabled, setEnabledState] = useState(false);
   const [connected, setConnected] = useState(false);
   const [message, setMessage] = useState('Tap Play to listen.');
@@ -484,6 +485,7 @@ function IcecastAudioProvider({ children }: { children: React.ReactNode }) {
     stallTimer.current = null;
   }, []);
 
+  const retryRef = useRef<(() => void) | null>(null);
   const start = useCallback(() => {
     const audio = audioRef.current;
     if (!playingWanted.current || !audio) return;
@@ -494,7 +496,18 @@ function IcecastAudioProvider({ children }: { children: React.ReactNode }) {
       if (!playingWanted.current) return;
       const errorName = cause instanceof Error ? cause.name : 'unknown';
       sendStationTelemetry('listener', 'play_rejected', { phase: 'error', details: errorName }, audio);
-      setMessage('Could not start audio. Tap Pause, then Play again.');
+      if (errorName === 'NotAllowedError') {
+        // iOS needs another explicit tap; automatic retry cannot grant permission.
+        playingWanted.current = false;
+        setEnabledState(false);
+        setConnected(false);
+        setMessage('Tap Play to resume audio (browser permission required).');
+      } else {
+        retryTimer.current === null && window.setTimeout(() => {
+          if (playingWanted.current) retryRef.current?.();
+        }, 0);
+        setMessage('Stream unavailable. Reconnecting…');
+      }
     });
   }, []);
 
@@ -511,12 +524,15 @@ function IcecastAudioProvider({ children }: { children: React.ReactNode }) {
     }, delay);
   }, [start]);
 
+  retryRef.current = retry;
+
   const setEnabled = useCallback((next: boolean) => {
     playingWanted.current = next;
     setEnabledState(next);
     clearTimers();
     if (next) {
       attempts.current = 0;
+      lastProgress.current = { time: 0, at: Date.now() };
       setMessage('Connecting to high-quality radio…');
       sendStationTelemetry('listener', 'play_requested', { phase: 'connecting' }, audioRef.current);
       start(); // Initiate play during the user's click gesture for mobile browsers.
@@ -536,6 +552,7 @@ function IcecastAudioProvider({ children }: { children: React.ReactNode }) {
     const onPlaying = () => {
       clearTimers();
       attempts.current = 0;
+      lastProgress.current = { time: audio.currentTime, at: Date.now() };
       setConnected(true);
       setMessage('Connected to radio.');
       sendStationTelemetry('listener', 'playing', { phase: 'playing' }, audio);
@@ -569,15 +586,27 @@ function IcecastAudioProvider({ children }: { children: React.ReactNode }) {
     };
     const onPause = () => {
       setConnected(false);
-      if (playingWanted.current) sendStationTelemetry('listener', 'pause', { phase: 'buffering', details: 'Unexpected media pause' }, audio);
+      if (playingWanted.current) {
+        sendStationTelemetry('listener', 'pause', { phase: 'buffering', details: 'Unexpected media pause' }, audio);
+        retry(); // A media element can pause with seconds buffered and never emit an error.
+      }
     };
     const heartbeat = window.setInterval(() => {
       if (!playingWanted.current) return;
+      const now = Date.now();
+      if (!audio.paused && !audio.ended && audio.currentTime > lastProgress.current.time + 0.15) {
+        lastProgress.current = { time: audio.currentTime, at: now };
+      } else if (!audio.paused && now - lastProgress.current.at > 8000 && retryTimer.current === null) {
+        sendStationTelemetry('listener', 'playback_progress_stalled', {
+          phase: 'buffering', details: 'Playhead has not advanced for 8 seconds',
+        }, audio);
+        retry();
+      }
       sendStationTelemetry('listener', 'heartbeat', {
         phase: audio.paused ? 'buffering' : audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA ? 'playing' : 'buffering',
         details: 'Media element state snapshot',
       }, audio);
-    }, 15000);
+    }, 2000);
     audio.addEventListener('playing', onPlaying);
     audio.addEventListener('waiting', onBuffer);
     audio.addEventListener('stalled', onStalled);
